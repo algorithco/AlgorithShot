@@ -1,4 +1,4 @@
-//! Algorithco Shot: a screenshot app that captures exactly what you need,
+//! AlgorithShot: a screenshot app that captures exactly what you need,
 //! finds it again, and helps you share it safely.
 
 mod capture;

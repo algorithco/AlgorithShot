@@ -2,7 +2,7 @@
 // compiler checks). `{name}` marks a value filled in at runtime.
 
 export const en = {
-  "app.name": "Algorithco Shot",
+  "app.name": "AlgorithShot",
 
   "common.cancel": "Cancel",
   "common.close": "Close",
@@ -184,7 +184,7 @@ export const en = {
   "set.version": "Version {v}",
   "set.offline": "Works fully offline. Nothing is uploaded and nothing is tracked.",
 
-  "wel.title": "Welcome to Algorithco Shot",
+  "wel.title": "Welcome to AlgorithShot",
   "wel.subtitle": "Capture exactly what you need, find it again in seconds, and share it safely.",
   "wel.step1.title": "Capture",
   "wel.step1.body": "Press {key}. The screen freezes. Drag a box, or click a window or a part of it.",

@@ -415,5 +415,5 @@
 }
 
 .ed-dirty {
-  color: var(--tally);
+  color: var(--tally-text);
 }

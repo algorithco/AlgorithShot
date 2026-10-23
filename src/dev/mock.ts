@@ -35,7 +35,7 @@ function makeShots(count: number): Shot[] {
     const [width, height] = sizes[i % sizes.length];
     return {
       id: `mock-${i}`,
-      path: `C:\\Users\\you\\Pictures\\Algorithco Shot\\${app} ${stamp}.png`,
+      path: `C:\\Users\\you\\Pictures\\AlgorithShot\\${app} ${stamp}.png`,
       name: `${app} ${stamp}.png`,
       created,
       width,
@@ -131,8 +131,8 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
     case "app_info":
       return {
         version: "0.1.0",
-        saveDir: "C:\\Users\\you\\Pictures\\Algorithco Shot",
-        defaultSaveDir: "C:\\Users\\you\\Pictures\\Algorithco Shot",
+        saveDir: "C:\\Users\\you\\Pictures\\AlgorithShot",
+        defaultSaveDir: "C:\\Users\\you\\Pictures\\AlgorithShot",
         saveDirSynced: false,
         printScreenTaken: true,
         language: "en",
@@ -229,7 +229,7 @@ const SAMPLE_CARDS: Record<string, CardPayload> = {
   temp: { kind: "shot", shot: null, tempId: "temp-1", width: 820, height: 640, copied: false },
   text: { kind: "text", text: SAMPLE_TEXT, copied: true },
   qr: { kind: "qr", items: ["https://algorithco.com/shot", "WIFI:T:WPA;S:Office;P:secret;;"], copied: true },
-  color: { kind: "color", hex: "#FFB400" },
+  color: { kind: "color", hex: "#FFD300" },
   countdown: { kind: "countdown", seconds: 5 },
   message: { kind: "message", text: "Something went wrong: the clipboard is busy", error: true },
 };

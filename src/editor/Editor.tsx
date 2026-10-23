@@ -144,7 +144,7 @@ export function Editor() {
       setFormat(i.format === "jpg" || i.format === "jpeg" ? "jpeg" : i.format === "webp" ? "webp" : "png");
       setVersion((v) => v + 1);
       autoFit.current = true;
-      getCurrentWindow().setTitle(`${i.name} — Algorithco Shot`).catch(() => {});
+      getCurrentWindow().setTitle(`${i.name} — AlgorithShot`).catch(() => {});
     } catch (e) {
       setError(errorText(e));
     }
@@ -273,7 +273,7 @@ export function Editor() {
       setSaved(hist!.present);
       setTarget(`shot:${shot.id}`);
       setInfo((i) => (i ? { ...i, shot, name: shot.name, hasOriginal: true } : i));
-      getCurrentWindow().setTitle(`${shot.name} — Algorithco Shot`).catch(() => {});
+      getCurrentWindow().setTitle(`${shot.name} — AlgorithShot`).catch(() => {});
       toast({ text: t("ed.saved") }, 2000);
       return true;
     } catch (e) {

@@ -3,7 +3,7 @@
 import type { Key } from "./en";
 
 export const uz: Record<Key, string> = {
-  "app.name": "Algorithco Shot",
+  "app.name": "AlgorithShot",
 
   "common.cancel": "Bekor qilish",
   "common.close": "Yopish",
@@ -185,7 +185,7 @@ export const uz: Record<Key, string> = {
   "set.version": "Versiya {v}",
   "set.offline": "Toʻliq oflayn ishlaydi. Hech narsa internetga yuklanmaydi va kuzatilmaydi.",
 
-  "wel.title": "Algorithco Shot ga xush kelibsiz",
+  "wel.title": "AlgorithShot ilovasiga xush kelibsiz",
   "wel.subtitle": "Kerakli narsani aniq suratga oling, uni soniyalarda toping va xavfsiz ulashing.",
   "wel.step1.title": "Suratga oling",
   "wel.step1.body": "{key} ni bosing. Ekran toʻxtaydi. Hududni belgilang yoki oynani, yoki uning qismini bosing.",

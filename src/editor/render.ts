@@ -80,7 +80,7 @@ function hide(ctx: Ctx, src: OffscreenCanvas, r: Rect, style: HideStyle, strengt
   ctx.rect(r.x, r.y, r.w, r.h);
   ctx.clip();
   if (style === "solid") {
-    ctx.fillStyle = "#16191e";
+    ctx.fillStyle = "#111111";
     ctx.fillRect(r.x, r.y, r.w, r.h);
   } else if (style === "blur") {
     ctx.filter = `blur(${Math.max(2, strength)}px)`;
@@ -231,8 +231,8 @@ export function drawMark(ctx: Ctx, m: Mark) {
       ctx.lineWidth = Math.max(1.5, m.size * 0.07);
       ctx.strokeStyle = "#ffffff";
       ctx.stroke();
-      ctx.fillStyle = luminance(m.color) > 0.6 ? "#16191e" : "#ffffff";
-      ctx.font = `700 ${Math.round(m.size * 0.55)}px Bahnschrift, ${MARK_FONT}`;
+      ctx.fillStyle = luminance(m.color) > 0.6 ? "#111111" : "#ffffff";
+      ctx.font = `700 ${Math.round(m.size * 0.55)}px "Segoe UI Variable Display", ${MARK_FONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(m.n), m.at.x, m.at.y + m.size * 0.03);

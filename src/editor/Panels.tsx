@@ -9,7 +9,7 @@ import { Segmented } from "../shared/ui";
 import { SIZE_PRESETS, type Mark } from "./doc";
 import type { Options, Tool } from "./Stage";
 
-export const COLORS = ["#E5484D", "#FFB400", "#3E7BFA", "#2FB26B", "#16191E", "#FFFFFF"];
+export const COLORS = ["#E5484D", "#FFD300", "#3E7BFA", "#2FB26B", "#16191E", "#FFFFFF"];
 export const HIGHLIGHTS = ["#FFE066", "#A5E887", "#FFB3CF", "#A6CFFF", "#FFC48A"];
 
 export function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {

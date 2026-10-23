@@ -38,7 +38,8 @@ impl Paths {
             database: data.join("library.db"),
             thumbs: cache.join("thumbs"),
             originals: data.join("originals"),
-            default_save_dir: pictures.join("Algorithco Shot"),
+            // Screenshots made before the rename stay where they are.
+            default_save_dir: if pictures.join("Algorithco Shot").is_dir() { pictures.join("Algorithco Shot") } else { pictures.join("AlgorithShot") },
         })
     }
 }

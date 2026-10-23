@@ -3,7 +3,7 @@
 import type { Key } from "./en";
 
 export const ru: Record<Key, string> = {
-  "app.name": "Algorithco Shot",
+  "app.name": "AlgorithShot",
 
   "common.cancel": "Отмена",
   "common.close": "Закрыть",
@@ -185,7 +185,7 @@ export const ru: Record<Key, string> = {
   "set.version": "Версия {v}",
   "set.offline": "Работает полностью офлайн. Ничего не загружается в сеть и не отслеживается.",
 
-  "wel.title": "Добро пожаловать в Algorithco Shot",
+  "wel.title": "Добро пожаловать в AlgorithShot",
   "wel.subtitle": "Снимайте ровно то, что нужно, находите за секунды и делитесь безопасно.",
   "wel.step1.title": "Снимайте",
   "wel.step1.body": "Нажмите {key}. Экран замрёт. Выделите область или щёлкните по окну или его части.",

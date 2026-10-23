@@ -24,7 +24,7 @@ pub fn overlay(app: &AppHandle, m: &MonitorInfo) -> Result<WebviewWindow> {
         Some(w) => w,
         None => {
             let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("overlay.html".into()))
-                .title("Algorithco Shot")
+                .title("AlgorithShot")
                 .decorations(false)
                 .transparent(true)
                 .shadow(false)
@@ -76,7 +76,7 @@ pub fn card(app: &AppHandle) -> Result<WebviewWindow> {
         return Ok(w);
     }
     let w = WebviewWindowBuilder::new(app, "card", WebviewUrl::App("card.html".into()))
-        .title("Algorithco Shot")
+        .title("AlgorithShot")
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -132,7 +132,7 @@ pub fn show_main(app: &AppHandle, page: Option<&str>) -> Result<()> {
     }
     let url = format!("index.html#{}", page.unwrap_or("library"));
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App(url.into()))
-        .title("Algorithco Shot")
+        .title("AlgorithShot")
         .inner_size(1180.0, 760.0)
         .min_inner_size(880.0, 560.0)
         .center()
@@ -163,7 +163,7 @@ pub fn open_editor_with(app: &AppHandle, target: &str, panel: Option<&str>) -> R
         url.push_str(&format!("&panel={panel}"));
     }
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
-        .title("Algorithco Shot — Editor")
+        .title("AlgorithShot — Editor")
         .inner_size(w, h)
         .min_inner_size(820.0, 560.0)
         .center()

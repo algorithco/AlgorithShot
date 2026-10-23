@@ -4,18 +4,19 @@ import { useEffect, type ReactNode } from "react";
 import { create } from "zustand";
 import { prettyKey } from "./format";
 
-/** Viewfinder corners with the amber tally dot. */
+/** The app icon: viewfinder corners around the yellow dot, on ink (src-tauri/icons/logo.svg). */
 export function Logo({ size = 28 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
+      <rect width="100" height="100" rx="22" fill="#111111" />
       <path
-        d="M4 11V6a2 2 0 0 1 2-2h5M21 4h5a2 2 0 0 1 2 2v5M28 21v5a2 2 0 0 1-2 2h-5M11 28H6a2 2 0 0 1-2-2v-5"
+        d="M25.5 44.5V30.4a4.9 4.9 0 0 1 4.9-4.9H44.5M55.5 25.5h14.1a4.9 4.9 0 0 1 4.9 4.9V44.5M74.5 55.5v14.1a4.9 4.9 0 0 1-4.9 4.9H55.5M44.5 74.5H30.4a4.9 4.9 0 0 1-4.9-4.9V55.5"
         fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
+        stroke="#ffffff"
+        strokeWidth="8"
+        strokeLinejoin="round"
       />
-      <circle cx="16" cy="16" r="4.5" fill="#ffb400" />
+      <circle cx="50" cy="50" r="11.3" fill="#ffd300" />
     </svg>
   );
 }
