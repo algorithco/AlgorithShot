@@ -85,6 +85,7 @@ export const uz: Record<Key, string> = {
   "lib.noResults": "“{q}” boʻyicha hech narsa topilmadi",
   "lib.yesterday": "Kecha",
   "lib.count": "{n} ta skrinshot · {size}",
+  "lib.countOne": "1 ta skrinshot · {size}",
   "lib.selected": "{n} ta tanlandi",
   "lib.clearSelection": "Tanlovni bekor qilish",
   "lib.copyFiles": "Fayl sifatida nusxalash",

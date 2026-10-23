@@ -84,6 +84,7 @@ export const en = {
   "lib.noResults": "Nothing matches “{q}”",
   "lib.yesterday": "Yesterday",
   "lib.count": "{n} screenshots · {size}",
+  "lib.countOne": "1 screenshot · {size}",
   "lib.selected": "{n} selected",
   "lib.clearSelection": "Clear selection",
   "lib.copyFiles": "Copy as files",

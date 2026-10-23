@@ -107,7 +107,7 @@ export function App() {
           {overview && (
             <div className="storage edge">
               <Calendar size={12} />
-              {t("lib.count", { n: overview.stats.count, size: formatBytes(overview.stats.bytes) })}
+              {t(overview.stats.count === 1 ? "lib.countOne" : "lib.count", { n: overview.stats.count, size: formatBytes(overview.stats.bytes) })}
             </div>
           )}
         </div>

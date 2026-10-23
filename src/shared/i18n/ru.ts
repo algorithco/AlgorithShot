@@ -85,6 +85,7 @@ export const ru: Record<Key, string> = {
   "lib.noResults": "По запросу «{q}» ничего не найдено",
   "lib.yesterday": "Вчера",
   "lib.count": "Скриншотов: {n} · {size}",
+  "lib.countOne": "Скриншотов: 1 · {size}",
   "lib.selected": "Выбрано: {n}",
   "lib.clearSelection": "Снять выделение",
   "lib.copyFiles": "Копировать как файлы",
