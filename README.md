@@ -9,12 +9,13 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
 - **Capture**: one hotkey (Print Screen, or Ctrl+Shift+Print Screen) freezes the
   screen. Drag a region, click a window or a part of it (buttons, panels,
   messages via UI Automation), capture the full screen or a fixed size, or use a
-  timer. A magnifier, the live size in real pixels, arrow-key nudging and typed
-  sizes make the selection exact.
-- **Screen tools**: copy text from anything on screen (Windows OCR), scan QR
-  codes and barcodes, pick colours, measure with the ruler, pin a capture on top.
-- **Quick card** after each capture: edit, pin, send to Telegram, copy, show in
-  folder, delete, or drag the image straight into another app.
+  timer. Letting go copies the capture at once; hold Ctrl to adjust it first
+  with the live size in real pixels, arrow-key nudging and typed sizes.
+- **Screen tools**: copy text from anything on screen (Windows OCR): the screen
+  stays frozen and you pick the words right there. Scan QR codes and barcodes,
+  pick colours, measure with the ruler, pin a capture on top.
+- **Quick card** after each capture: edit, save as, pin, send to Telegram, copy,
+  show in folder, delete, or drag the image straight into another app.
 - **Editor**: crop, erase, remove & fill, cut out a strip, hide (pixelate, blur,
   solid), arrows, boxes, highlighter, text, numbered steps, perfect sizes and
   presets, "keep under N KB", and a privacy check that hides emails, phone
@@ -36,9 +37,12 @@ pnpm install
 pnpm tauri dev        # run the app
 pnpm dev              # pages only, in a browser, with fake data (src/dev/mock.ts)
 pnpm test             # frontend tests
-cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust tests, incl. Windows OCR
+cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust tests, incl. Windows OCR and a real screen grab
 pnpm tauri build      # Windows installer in src-tauri/target/release/bundle/nsis
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same checks on every pull request,
+except the tests that need a real screen or Windows' OCR languages.
 
 Command-line actions (also sent to the running app): `--capture [mode]`,
 `--text`, `--qr`, `--library`, `--settings`, `--hidden`.
