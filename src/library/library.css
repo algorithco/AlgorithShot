@@ -32,8 +32,8 @@
 }
 
 .capture-btn .kbd {
-  background: rgba(22, 25, 30, 0.12);
-  border-color: rgba(22, 25, 30, 0.25);
+  background: rgba(17, 17, 17, 0.12);
+  border-color: rgba(17, 17, 17, 0.25);
   color: var(--tally-ink);
   height: 20px;
   font-size: 11px;
@@ -256,8 +256,8 @@
 
 .tile.selected .tile-thumb {
   border-color: transparent;
-  outline: 1px solid var(--tally);
-  outline-offset: -1px;
+  outline: 2px solid var(--tally);
+  outline-offset: -2px;
   background-color: var(--tally-soft);
 }
 
@@ -267,7 +267,8 @@
   top: 8px;
   left: 8px;
   color: var(--tally);
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  /* A dark rim keeps the yellow star visible on light pictures. */
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8)) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
 }
 
 .tile-badge {
@@ -293,7 +294,7 @@
   gap: 2px;
   padding: 3px;
   border-radius: 8px;
-  background: rgba(17, 19, 23, 0.86);
+  background: rgba(17, 17, 17, 0.86);
   opacity: 0;
   transform: translateY(4px);
   transition: opacity 0.12s, transform 0.12s;
@@ -312,7 +313,7 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #e3e6ea;
+  color: #d9d9d3;
   cursor: pointer;
 }
 
@@ -863,7 +864,7 @@
   max-width: 760px;
   padding: 44px 54px 40px;
   text-align: center;
-  outline: 1px solid rgba(255, 180, 0, 0.55);
+  outline: 1px solid rgba(255, 211, 0, 0.55);
   outline-offset: -1px;
 }
 

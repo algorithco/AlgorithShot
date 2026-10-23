@@ -322,7 +322,7 @@ pub async fn drag_icon(app: AppHandle, id: Option<String>, temp_id: Option<Strin
 pub async fn temp_file(app: AppHandle, temp_id: String) -> CmdResult<String> {
     let st = state(&app);
     let img = st.image(&temp_id).ok_or("this capture is no longer available")?;
-    let dir = std::env::temp_dir().join("Algorithco Shot");
+    let dir = std::env::temp_dir().join("AlgorithShot");
     std::fs::create_dir_all(&dir).map_err(err)?;
     let path = dir.join(format!("Screenshot {}.png", chrono::Local::now().format("%Y-%m-%d %H-%M-%S")));
     let data = crate::imaging::encode(&img, crate::imaging::Format::Png, 100).map_err(anyhow_err)?;

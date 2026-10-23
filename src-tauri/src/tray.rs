@@ -37,7 +37,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
     let icon = app.default_window_icon().cloned().expect("app icon");
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
-        .tooltip("Algorithco Shot")
+        .tooltip("AlgorithShot")
         .menu(&menu(app)?)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {

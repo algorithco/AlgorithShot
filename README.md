@@ -1,4 +1,4 @@
-# Algorithco Shot
+# AlgorithShot
 
 A Windows screenshot app that captures exactly what you need, finds it again in
 seconds, and helps you share it safely. Free, offline, in English, Uzbek and
@@ -25,8 +25,8 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
   goes to the Recycle Bin with undo; the clean-up page finds duplicates and
   old or large files.
 
-Nothing is uploaded. Screenshots are saved to `Pictures\Algorithco Shot`
-(or `%USERPROFILE%\Pictures\Algorithco Shot` when Pictures is in OneDrive).
+Nothing is uploaded. Screenshots are saved to `Pictures\AlgorithShot`
+(or `%USERPROFILE%\Pictures\AlgorithShot` when Pictures is in OneDrive).
 
 ## Develop
 

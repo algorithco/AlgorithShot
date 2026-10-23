@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Algorithco Shot",
+  "productName": "AlgorithShot",
   "version": "0.1.0",
   "identifier": "com.algorithco.shot",
   "build": {

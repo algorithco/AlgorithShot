@@ -69,8 +69,8 @@ export type LoadArgs = {
   snap: boolean;
 };
 
-const TALLY = "#ffb400";
-const DIM = "rgba(8, 10, 14, 0.5)";
+const TALLY = "#ffd300";
+const DIM = "rgba(10, 10, 10, 0.5)";
 const CURSORS: Record<Handle, string> = {
   nw: "nwse-resize",
   se: "nwse-resize",
@@ -668,8 +668,8 @@ export class Engine {
     const y = area.y + ((performance.now() % 1100) / 1100) * area.h;
     const trail = Math.max(8 * ratio, area.h * 0.2);
     const fade = ctx.createLinearGradient(0, y - trail, 0, y);
-    fade.addColorStop(0, "rgba(255, 180, 0, 0)");
-    fade.addColorStop(1, "rgba(255, 180, 0, 0.26)");
+    fade.addColorStop(0, "rgba(255, 211, 0, 0)");
+    fade.addColorStop(1, "rgba(255, 211, 0, 0.26)");
     ctx.save();
     ctx.beginPath();
     ctx.rect(area.x, area.y, area.w, area.h);
@@ -693,7 +693,7 @@ export class Engine {
     ctx.beginPath();
     ctx.rect(area.x, area.y, area.w, area.h);
     ctx.clip();
-    ctx.fillStyle = "rgba(8, 10, 14, 0.42)";
+    ctx.fillStyle = "rgba(10, 10, 10, 0.42)";
     ctx.fillRect(area.x, area.y, area.w, area.h);
     // Repainted from the frozen screen, so overlapping lines stay clean.
     for (const line of pickedBands(this.words, 0, this.words.length - 1)) {
@@ -701,7 +701,7 @@ export class Engine {
       if (r) ctx.drawImage(bitmap, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
     }
     if (this.pick) {
-      ctx.fillStyle = "rgba(255, 180, 0, 0.38)";
+      ctx.fillStyle = "rgba(255, 211, 0, 0.38)";
       for (const band of pickedBands(this.words, this.pick.a, this.pick.b)) {
         const r = grown(band);
         if (!r) continue;
@@ -772,7 +772,7 @@ export class Engine {
     ctx.save();
     ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
     ctx.shadowBlur = 16 * ratio;
-    ctx.fillStyle = "#0e1013";
+    ctx.fillStyle = "#111111";
     ctx.fillRect(mx, my, size, size + info);
     ctx.shadowBlur = 0;
 
@@ -815,11 +815,11 @@ export class Engine {
     ctx.fillStyle = hex;
     ctx.fillRect(mx + pad, line1 - sw / 2, sw, sw);
     ctx.textBaseline = "middle";
-    ctx.font = `600 ${Math.round(12.5 * ratio)}px Bahnschrift, "Segoe UI", sans-serif`;
-    ctx.fillStyle = "#f2f4f6";
+    ctx.font = `600 ${Math.round(12.5 * ratio)}px "Segoe UI Variable Display", "Segoe UI", sans-serif`;
+    ctx.fillStyle = "#f4f4f1";
     ctx.fillText(hex, mx + pad + sw + 7 * ratio, line1);
-    ctx.font = `${Math.round(11.5 * ratio)}px Bahnschrift, "Segoe UI", sans-serif`;
-    ctx.fillStyle = "#9aa2ae";
+    ctx.font = `${Math.round(11.5 * ratio)}px "Segoe UI Variable Display", "Segoe UI", sans-serif`;
+    ctx.fillStyle = "#aaa9a2";
     ctx.fillText(`X ${cx}   Y ${cy}`, mx + pad, line2);
     ctx.restore();
   }
@@ -839,7 +839,7 @@ export class Engine {
     // Dashed box showing the horizontal and vertical extents.
     ctx.setLineDash([4 * ratio, 4 * ratio]);
     ctx.lineWidth = lw;
-    ctx.strokeStyle = "rgba(255, 180, 0, 0.6)";
+    ctx.strokeStyle = "rgba(255, 211, 0, 0.6)";
     ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(dx), Math.abs(dy));
     ctx.setLineDash([]);
     ctx.fillStyle = TALLY;
@@ -849,14 +849,14 @@ export class Engine {
       ctx.fill();
     }
     const label = `${Math.abs(dx)} × ${Math.abs(dy)}  ·  ${Math.round(Math.hypot(dx, dy))} px`;
-    ctx.font = `600 ${Math.round(13 * ratio)}px Bahnschrift, "Segoe UI", sans-serif`;
+    ctx.font = `600 ${Math.round(13 * ratio)}px "Segoe UI Variable Display", "Segoe UI", sans-serif`;
     const tw = ctx.measureText(label).width + 16 * ratio;
     const th = 26 * ratio;
     const lx = Math.min(Math.max((a.x + b.x) / 2 - tw / 2, 4), this.width - tw - 4);
     const ly = Math.min(Math.max((a.y + b.y) / 2 - th - 10 * ratio, 4), this.height - th - 4);
-    ctx.fillStyle = "rgba(14, 16, 19, 0.92)";
+    ctx.fillStyle = "rgba(17, 17, 17, 0.92)";
     ctx.fillRect(lx, ly, tw, th);
-    ctx.fillStyle = "#f2f4f6";
+    ctx.fillStyle = "#f4f4f1";
     ctx.textBaseline = "middle";
     ctx.fillText(label, lx + 8 * ratio, ly + th / 2);
     ctx.restore();

@@ -19,7 +19,7 @@ pub fn open(app: &AppHandle, img: RgbaImage, at: Rect) -> Result<()> {
     let id = state(app).put_image(img);
     let url = format!("pin.html?id={id}&w={pw}&h={ph}");
     let window = WebviewWindowBuilder::new(app, format!("pin-{id}"), WebviewUrl::App(url.into()))
-        .title("Algorithco Shot — Pin")
+        .title("AlgorithShot — Pin")
         .decorations(false)
         .transparent(true)
         .shadow(false)

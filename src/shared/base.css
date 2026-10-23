@@ -1,38 +1,39 @@
-/* Algorithco Shot design tokens and base styles.
-   Look: a precision lightbox. Cool light surface (or darkroom in dark mode),
-   graphite type, one amber "tally light" accent, Bahnschrift (Windows' DIN)
-   for headings and measurements, and viewfinder corner brackets as the
-   signature mark. */
+/* AlgorithShot design tokens and base styles, from the Algorithco palette:
+   warm paper and ink, one yellow accent for what is new or in focus, tight
+   grotesque headings, monospaced values, and viewfinder corner brackets as
+   the signature mark. */
 
 :root {
   color-scheme: light dark;
 
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, monospace;
 
-  --tally: #ffb400;
-  --tally-ink: #16191e;
+  /* Yellow, the one accent; ink is what sits on it. */
+  --tally: #ffd300;
+  --tally-ink: #111111;
 
-  /* Light: the lightbox. */
-  --bg: #f2f4f6;
+  /* Light: paper and ink. */
+  --bg: #f7f7f5;
   --surface: #ffffff;
-  --surface-2: #f8f9fa;
-  --sunken: #e9ecef;
-  --ink: #16191e;
-  --ink-2: #3a414b;
-  --muted: #6b7380;
-  --line: #dde1e6;
-  --line-strong: #c5cbd3;
-  --tally-text: #9a6100; /* amber that passes contrast on white */
-  --tally-soft: rgba(255, 180, 0, 0.16);
+  --surface-2: #fbfbfa;
+  --sunken: #efefeb;
+  --ink: #111111;
+  --ink-2: #3a3a36;
+  --muted: #62625d;
+  --faint: #8b8b84;
+  --line: #d9d9d3;
+  --line-strong: #aaaaa3;
+  --tally-text: #6b5600; /* yellow text that passes contrast on paper */
+  --tally-soft: #fff4b8;
   --danger: #c8372a;
   --danger-soft: rgba(200, 55, 42, 0.1);
   --ok: #1f8a54;
   --checker-a: #ffffff;
-  --checker-b: #e7eaee;
-  --shadow-1: 0 1px 2px rgba(22, 25, 30, 0.06), 0 1px 1px rgba(22, 25, 30, 0.04);
-  --shadow-2: 0 10px 30px rgba(22, 25, 30, 0.14), 0 2px 6px rgba(22, 25, 30, 0.08);
+  --checker-b: #ecece8;
+  --shadow-1: 0 1px 2px rgba(17, 17, 17, 0.06), 0 1px 1px rgba(17, 17, 17, 0.04);
+  --shadow-2: 0 10px 30px rgba(17, 17, 17, 0.14), 0 2px 6px rgba(17, 17, 17, 0.08);
 
   --radius-s: 4px;
   --radius: 8px;
@@ -42,44 +43,46 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121417;
-    --surface: #1a1d22;
-    --surface-2: #1f2329;
-    --sunken: #0d0f12;
-    --ink: #eceef1;
-    --ink-2: #c7ccd3;
-    --muted: #8f98a5;
-    --line: #2a2f36;
-    --line-strong: #3a414b;
-    --tally-text: #ffc53d;
-    --tally-soft: rgba(255, 180, 0, 0.14);
+    --bg: #0f0f0f;
+    --surface: #161616;
+    --surface-2: #1b1b1a;
+    --sunken: #0a0a0a;
+    --ink: #f4f4f1;
+    --ink-2: #d6d5cf;
+    --muted: #aaa9a2;
+    --faint: #7a7973;
+    --line: #31312f;
+    --line-strong: #555550;
+    --tally-text: #ffd300;
+    --tally-soft: #2b2500;
     --danger: #ff6b5c;
     --danger-soft: rgba(255, 107, 92, 0.12);
     --ok: #4cc98a;
-    --checker-a: #23272d;
-    --checker-b: #1a1d22;
+    --checker-a: #1d1d1c;
+    --checker-b: #141414;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #121417;
-  --surface: #1a1d22;
-  --surface-2: #1f2329;
-  --sunken: #0d0f12;
-  --ink: #eceef1;
-  --ink-2: #c7ccd3;
-  --muted: #8f98a5;
-  --line: #2a2f36;
-  --line-strong: #3a414b;
-  --tally-text: #ffc53d;
-  --tally-soft: rgba(255, 180, 0, 0.14);
+  --bg: #0f0f0f;
+  --surface: #161616;
+  --surface-2: #1b1b1a;
+  --sunken: #0a0a0a;
+  --ink: #f4f4f1;
+  --ink-2: #d6d5cf;
+  --muted: #aaa9a2;
+  --faint: #7a7973;
+  --line: #31312f;
+  --line-strong: #555550;
+  --tally-text: #ffd300;
+  --tally-soft: #2b2500;
   --danger: #ff6b5c;
   --danger-soft: rgba(255, 107, 92, 0.12);
   --ok: #4cc98a;
-  --checker-a: #23272d;
-  --checker-b: #1a1d22;
+  --checker-a: #1d1d1c;
+  --checker-b: #141414;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
@@ -126,25 +129,24 @@ select {
 
 .display {
   font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 650;
+  letter-spacing: -0.025em;
 }
 
-/* Small condensed caps used like the markings on a film's edge:
-   dimensions, sizes, counts. */
+/* Small spaced caps for labels: what a value is, sizes, counts. */
 .edge {
-  font-family: var(--font-display);
-  font-stretch: 87.5%;
-  font-variation-settings: "wdth" 85;
+  font-family: var(--font-ui);
+  font-weight: 600;
   font-size: 11px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
+/* Values people read exactly: sizes, positions, colours. */
 .measure {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 

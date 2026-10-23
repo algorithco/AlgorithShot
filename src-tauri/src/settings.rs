@@ -58,7 +58,7 @@ pub struct Settings {
     pub language: String,
     /// "system", "light" or "dark".
     pub theme: String,
-    /// Empty means `Pictures\Algorithco Shot`.
+    /// Empty means `Pictures\AlgorithShot`.
     pub save_dir: String,
     /// Save every capture to the library (needed for search and history).
     pub save_all: bool,

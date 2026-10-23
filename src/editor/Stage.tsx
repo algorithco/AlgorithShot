@@ -66,7 +66,7 @@ type Props = {
   onStageSize: (w: number, h: number) => void;
 };
 
-const TALLY = "#ffb400";
+const TALLY = "#ffd300";
 
 /** Tools where clicking a mark grabs it instead of drawing a new one. */
 const EDITS_MARKS = new Set<Tool>(["select", "arrow", "box", "highlight", "text", "step"]);
@@ -569,7 +569,7 @@ function checker(ctx: CanvasRenderingContext2D): CanvasPattern {
   if (pattern?.theme === theme) return pattern.value;
   const tile = new OffscreenCanvas(16, 16);
   const t = tile.getContext("2d")!;
-  const [a, b] = theme === "dark" ? ["#23272d", "#1a1d22"] : ["#ffffff", "#e7eaee"];
+  const [a, b] = theme === "dark" ? ["#1d1d1c", "#141414"] : ["#ffffff", "#ecece8"];
   t.fillStyle = a;
   t.fillRect(0, 0, 16, 16);
   t.fillStyle = b;
@@ -596,7 +596,7 @@ function drawPreview(ctx: CanvasRenderingContext2D, d: Drag, opts: Options, doc:
     if (d.tool === "box") drawMark(ctx, { id: "p", kind: "box", rect: r, color: opts.color, width: opts.width });
     else if (d.tool === "highlight") drawMark(ctx, { id: "p", kind: "highlight", rect: r, color: opts.highlight });
     else if (d.tool === "erase") tint(r, "rgba(229, 72, 77, 0.22)", "#e5484d");
-    else tint(r, "rgba(255, 180, 0, 0.18)", TALLY);
+    else tint(r, "rgba(255, 211, 0, 0.18)", TALLY);
   }
   if (d.kind === "line") drawMark(ctx, { id: "p", kind: "arrow", a: d.start, b: d.now, color: opts.color, width: opts.width });
   if (d.kind === "stroke") {
@@ -626,7 +626,7 @@ function drawCrop(ctx: CanvasRenderingContext2D, r: Rect, view: View, w: number,
   const cw = r.w * view.zoom;
   const ch = r.h * view.zoom;
   ctx.save();
-  ctx.fillStyle = "rgba(8, 10, 14, 0.55)";
+  ctx.fillStyle = "rgba(10, 10, 10, 0.55)";
   ctx.beginPath();
   ctx.rect(0, 0, w, h);
   ctx.rect(x, y, cw, ch);
