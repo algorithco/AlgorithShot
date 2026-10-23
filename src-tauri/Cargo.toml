@@ -56,3 +56,6 @@ strip = true
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
+
+[dev-dependencies]
+qrcode = { version = "0.14.1", default-features = false, features = ["image"] }

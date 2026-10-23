@@ -349,12 +349,16 @@ fn source_of(windows: &[WindowInfo], area: Rect) -> Source {
         _ => win::friendly_app_name(&w.app, &w.title),
     };
     let title = if app == "Desktop" { String::new() } else { w.title.clone() };
-    Source { app, title, url: String::new() }
+    Source { app, title, url: String::new(), hwnd: w.hwnd, exe: w.app.clone() }
 }
 
-fn finish(app: &AppHandle, img: RgbaImage, src: Source, at: Rect, action: &str) -> Result<()> {
+fn finish(app: &AppHandle, img: RgbaImage, mut src: Source, at: Rect, action: &str) -> Result<()> {
     let st = state(app);
     let settings = st.settings();
+    // Browsers: remember the page address, so the library can search it.
+    if crate::smart::uia::is_browser(&src.exe) {
+        src.url = crate::smart::uia::browser_url(src.hwnd, Duration::from_millis(400)).unwrap_or_default();
+    }
     match action {
         "pin" => pins::open(app, img, at),
         "text" | "qr" => crate::smart::screen_tool(app, action, &img),

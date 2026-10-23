@@ -92,6 +92,25 @@ export function Overlay() {
 
   useEffect(() => {
     initSettings();
+    // Element lookups go one at a time; the newest point wins.
+    let asking = false;
+    let wanted: { x: number; y: number } | null = null;
+    const askElements = async () => {
+      const s = sessionRef.current;
+      if (asking || !wanted || !s?.elements) return;
+      const at = wanted;
+      wanted = null;
+      asking = true;
+      try {
+        const found = await api.elementAt(s.sessionId, s.monitor.id, Math.round(at.x), Math.round(at.y));
+        if (sessionRef.current?.sessionId === s.sessionId) engine.setElements(found, at);
+      } catch {
+        // No element info for this app: window snapping still works.
+      } finally {
+        asking = false;
+        if (wanted) askElements();
+      }
+    };
     const engine = new Engine(canvasRef.current!, {
       change: setView,
       commit: (rect, action) => commit(rect, action),
@@ -99,6 +118,10 @@ export function Overlay() {
       color: (hex) => {
         api.copyColor(hex);
         cancel();
+      },
+      elementsAt: (p) => {
+        wanted = p;
+        askElements();
       },
     });
     engineRef.current = engine;

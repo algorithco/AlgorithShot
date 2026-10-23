@@ -178,6 +178,20 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
     }
     case "share_telegram":
       return true;
+    case "editor_info": {
+      const shot = { ...shots[0], width: 1600, height: 1000 };
+      return { name: shot.name, width: 1600, height: 1000, format: "png", hasOriginal: true, shot };
+    }
+    case "editor_estimate":
+      return { bytes: 184_320, quality: 90 };
+    case "editor_save":
+      return shots[0];
+    case "privacy_scan":
+      return [
+        { kind: "email", preview: "o•••@gmail.com", rect: { x: 470, y: 250, w: 360, h: 34 } },
+        { kind: "phone", preview: "+998 •• ••• •• 67", rect: { x: 470, y: 330, w: 300, h: 34 } },
+        { kind: "card", preview: "8600 •••• •••• 1234", rect: { x: 470, y: 410, w: 380, h: 34 } },
+      ];
     case "drag_icon":
     case "temp_file":
       return "C:\\temp\\x.png";

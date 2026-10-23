@@ -153,6 +153,33 @@ pub async fn capture_commit(app: AppHandle, req: CommitRequest) -> CmdResult<()>
     capture::commit(&app, req).map_err(anyhow_err)
 }
 
+#[derive(Serialize)]
+pub struct ElementOut {
+    rect: crate::win::Rect,
+    name: String,
+}
+
+/// UI elements under a point of a monitor in the current capture, smallest
+/// first, relative to that monitor. Empty if element snapping is off.
+#[tauri::command]
+pub async fn element_at(app: AppHandle, session_id: u64, monitor_id: usize, x: i32, y: i32) -> Vec<ElementOut> {
+    let st = state(&app);
+    if !st.settings().elements {
+        return Vec::new();
+    }
+    let Some(session) = st.capture.current().filter(|s| s.id == session_id) else { return Vec::new() };
+    let Some(m) = session.frames.iter().map(|f| &f.monitor).find(|m| m.id == monitor_id) else { return Vec::new() };
+    let (sx, sy) = (m.rect.x + x, m.rect.y + y);
+    let Some(win) = session.windows.iter().find(|w| w.rect.contains(sx, sy)) else { return Vec::new() };
+    let (hwnd, origin) = (win.hwnd, (m.rect.x, m.rect.y));
+    tauri::async_runtime::spawn_blocking(move || crate::smart::uia::elements_at(hwnd, sx, sy, std::time::Duration::from_millis(260)))
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| ElementOut { rect: e.rect.offset(-origin.0, -origin.1), name: e.name })
+        .collect()
+}
+
 #[tauri::command]
 pub fn copy_color(app: AppHandle, hex: String) -> CmdResult<()> {
     clipboard::set_text(&hex).map_err(anyhow_err)?;
