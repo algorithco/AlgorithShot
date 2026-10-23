@@ -5,6 +5,7 @@ mod capture;
 mod card;
 mod clipboard;
 mod commands;
+mod editor;
 mod hotkeys;
 mod i18n;
 mod imaging;
@@ -102,6 +103,15 @@ pub fn run() {
                     log::warn!("library check: {e:#}");
                 }
                 smart::resume_indexing(&bg);
+                // Automatic clean-up, if it's turned on: now and every 6 hours.
+                loop {
+                    match shots::auto_clean(&bg) {
+                        Ok(0) => {}
+                        Ok(n) => log::info!("auto clean-up moved {n} screenshot(s) to the Recycle Bin"),
+                        Err(e) => log::warn!("auto clean-up: {e:#}"),
+                    }
+                    std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+                }
             });
 
             let args: Vec<String> = std::env::args().collect();
@@ -127,6 +137,8 @@ pub fn run() {
             commands::capture_cancel,
             commands::capture_commit,
             commands::copy_color,
+            commands::element_at,
+            commands::capture_read_text,
             commands::copy_text,
             commands::card_ready,
             commands::card_hide,
@@ -152,6 +164,19 @@ pub fn run() {
             commands::show_library,
             commands::cleanup_scan,
             commands::share_telegram,
+            commands::save_as_image,
+            editor::editor_info,
+            editor::editor_fill,
+            editor::editor_resize,
+            editor::editor_estimate,
+            editor::editor_save,
+            editor::editor_save_as,
+            editor::editor_copy,
+            editor::editor_revert,
+            editor::privacy_scan,
+            editor::read_text,
+            editor::open_image_file,
+            editor::open_image_bytes,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the app");

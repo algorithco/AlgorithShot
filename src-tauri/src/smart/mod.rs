@@ -1,12 +1,20 @@
-//! The "smart" features: image fingerprints for finding duplicates, and (in
-//! later steps) text recognition, the privacy check, QR codes and UI
-//! element detection.
+//! The "smart" features: reading text (OCR), the privacy shield, QR codes,
+//! UI element detection, and image fingerprints for finding duplicates.
+
+pub mod ocr;
+pub mod privacy;
+pub mod qr;
+pub mod uia;
+
+#[cfg(test)]
+mod live_tests;
 
 use anyhow::{anyhow, Result};
 use image::RgbaImage;
 use image_hasher::{HashAlg, HasherConfig, ImageHash};
 use tauri::{AppHandle, Emitter};
 
+use crate::card::{self, Card};
 use crate::shots;
 use crate::state::state;
 
@@ -23,6 +31,21 @@ pub fn index_shot(app: &AppHandle, id: &str) -> Result<()> {
     let st = state(app);
     let Some(shot) = st.library.get(id)? else { return Ok(()) };
     let img = shots::load_rgba(std::path::Path::new(&shot.path))?;
+    let settings = st.settings();
+
+    let text = if settings.index_text || settings.privacy_check { ocr::read(&img) } else { Err(anyhow!("off")) };
+    match &text {
+        Ok(results) if settings.index_text => st.library.set_text(id, &ocr::union_text(results), 1)?,
+        Err(e) if settings.index_text => {
+            log::warn!("reading text of {id}: {e:#}");
+            st.library.set_text(id, "", 2)?;
+        }
+        _ => st.library.set_text(id, "", 2)?,
+    }
+    if settings.privacy_check {
+        let found = privacy::scan(&img, text.as_deref().unwrap_or(&[]));
+        st.library.set_privacy(id, found.len() as i32, &serde_json::to_string(&found)?)?;
+    }
     st.library.set_phash(id, &fingerprint(&img))?;
     let _ = app.emit("library:indexed", id);
     Ok(())
@@ -40,9 +63,19 @@ pub fn resume_indexing(app: &AppHandle) {
     }
 }
 
-/// The overlay's "copy text" and "scan QR" tools.
-pub fn screen_tool(app: &AppHandle, tool: &str, _img: &RgbaImage) -> Result<()> {
-    crate::card::show(app, crate::card::Card::Message { text: format!("{tool}: coming soon"), error: false });
+/// The overlay's "copy text" and "scan QR" tools: the result goes to the
+/// clipboard and the card shows it.
+pub fn screen_tool(app: &AppHandle, tool: &str, img: &RgbaImage) -> Result<()> {
+    init_thread();
+    if tool == "qr" {
+        let items = qr::scan(img);
+        let copied = items.len() == 1 && crate::clipboard::set_text(&items[0]).is_ok();
+        card::show(app, Card::Qr { items, copied });
+        return Ok(());
+    }
+    let text = ocr::read(img)?.first().map(ocr::OcrText::text).unwrap_or_default();
+    let copied = !text.is_empty() && crate::clipboard::set_text(&text).is_ok();
+    card::show(app, Card::Text { text, copied });
     Ok(())
 }
 

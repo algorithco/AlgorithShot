@@ -1,5 +1,6 @@
 // Settings. Every change saves right away; there is no Save button.
 
+import { listen } from "@tauri-apps/api/event";
 import { AlertTriangle, ChevronDown, FolderOpen, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorText, type AppInfo, type HotkeyStatus, type Hotkeys, type Settings } from "../shared/api";
@@ -106,9 +107,6 @@ export function SettingsPage() {
               <HotkeyInput value={settings.hotkeys[k]} status={keyStatus(settings.hotkeys[k])} onChange={(v) => setKey(k, v)} />
             </Row>
           ))}
-        <Row label={t("set.magnifier")}>
-          <Switch checked={settings.magnifier} onChange={(v) => save({ magnifier: v })} label={t("set.magnifier")} />
-        </Row>
         <Row label={t("set.snap")}>
           <Switch checked={settings.snap} onChange={(v) => save({ snap: v })} label={t("set.snap")} />
         </Row>
@@ -291,11 +289,18 @@ function HotkeyInput({ value, status, onChange }: { value: string; status?: Hotk
     const up = (e: KeyboardEvent) => {
       if (e.code === "PrintScreen") take(e);
     };
+    // The app's keyboard hook catches Print Screen before Windows can open
+    // the Snipping Tool, and reports it here.
+    const fromHook = listen<string>("hotkey:record", (e) => {
+      changeRef.current(e.payload);
+      setRecording(false);
+    });
     window.addEventListener("keydown", take, true);
     window.addEventListener("keyup", up, true);
     return () => {
       window.removeEventListener("keydown", take, true);
       window.removeEventListener("keyup", up, true);
+      fromHook.then((un) => un()).catch(() => {});
       api.hotkeysSuspend(false);
     };
   }, [recording]);

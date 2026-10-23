@@ -1,0 +1,115 @@
+# The pages are checked on Linux. The Rust core calls Windows APIs and only
+# builds on Windows, so that one job runs there (private repositories count
+# Windows minutes double).
+# Immutable action commits correspond to these official releases:
+# https://github.com/actions/checkout/releases/tag/v7.0.1
+# https://github.com/actions/setup-node/releases/tag/v7.0.0
+# https://github.com/pnpm/action-setup/releases/tag/v6.1.0
+# https://github.com/Swatinem/rust-cache/releases/tag/v2.9.2
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # No workflow-level paths-ignore: the full-history secret scan must run even
+  # when a pull request changes only documentation.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.29.3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  core:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.29.3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.13.0
+          cache: pnpm
+      # The app embeds the built pages.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Install Rust 1.98.1
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --no-self-update
+          rustup default 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+      - name: Test
+        working-directory: src-tauri
+        # Tests that need a real screen or Windows' OCR languages run on a PC only.
+        run: cargo test --lib --locked -- --skip live_tests --skip grabs_the_main_monitor
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.29.3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.13.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks from a pinned release
+        # Direct CLI use avoids the organization-repository license required
+        # by gitleaks-action. The release checksum is verified before use.
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          set -euo pipefail
+          curl -sSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          sha256sum -c --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          tar xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+          ./gitleaks git . --redact --no-banner --no-color --verbose
+
+  ci:
+    name: CI
+    if: ${{ always() }}
+    needs: [pages, core, audit, secrets]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Confirm all required jobs passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: test "$RESULTS" = "success success success success"

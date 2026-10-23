@@ -1,11 +1,419 @@
-.editor-placeholder {
+.ed {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+.ed-message {
   height: 100vh;
   display: grid;
   place-items: center;
-  overflow: auto;
 }
 
-.editor-placeholder img {
-  max-width: 96%;
-  max-height: 96%;
+/* ---- toolbar ---- */
+
+.ed-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.ed-group {
+  display: flex;
+  gap: 2px;
+}
+
+.ed-tool {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.ed-tool:hover {
+  background: var(--sunken);
+  color: var(--ink);
+}
+
+.ed-tool.on {
+  background: var(--tally-soft);
+  color: var(--tally-text);
+  box-shadow: inset 0 0 0 1px var(--tally);
+}
+
+.ed-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--line);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+}
+
+.ed-zoom {
+  display: flex;
+  align-items: center;
+}
+
+.ed-zoom-value {
+  min-width: 54px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ed-zoom-value:hover {
+  background: var(--sunken);
+}
+
+/* ---- stage ---- */
+
+.ed-body {
+  display: flex;
+  min-height: 0;
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--sunken);
+}
+
+.stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.stage-text {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed var(--tally);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  font-weight: 600;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  field-sizing: content;
+  user-select: text;
+}
+
+/* ---- side panel ---- */
+
+.ed-side {
+  width: 300px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 14px 24px;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.ed-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ed-section + .ed-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.ed-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ed-section-head h3 {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.ed-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.ed-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ed-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ed-row2 {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ed-row2 .ed-field {
+  flex: 1;
+}
+
+.ed-size .lock {
+  margin-bottom: 0;
+}
+
+.input.num {
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ed-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn.wide {
+  width: 100%;
+}
+
+.swatches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.swatch-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+}
+
+.swatch-btn[aria-checked="true"] {
+  outline: 2px solid var(--tally);
+  outline-offset: 2px;
+}
+
+.swatch-custom {
+  width: 28px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 13px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: 600 12px var(--font-display);
+  cursor: pointer;
+}
+
+.chip.on {
+  border-color: var(--tally);
+  background: var(--tally-soft);
+  color: var(--ink);
+}
+
+.ed-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ed-slider input {
+  flex: 1;
+  accent-color: var(--tally);
+}
+
+.ed-slider span {
+  min-width: 42px;
+  text-align: right;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.presets {
+  display: grid;
+  gap: 2px;
+}
+
+.preset {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.preset:hover {
+  background: var(--sunken);
+}
+
+.preset.on {
+  background: var(--tally-soft);
+  color: var(--ink);
+}
+
+.preset .measure {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ed-maxsize {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ed-maxsize .input {
+  width: 110px;
+}
+
+.ed-estimate {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.ed-estimate.bad {
+  color: var(--danger);
+}
+
+.ed-ok {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ok);
+  font-size: 13px;
+}
+
+.findings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.findings label {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--sunken);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.findings input {
+  accent-color: var(--tally);
+}
+
+.finding-kind {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.finding-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* ---- status bar ---- */
+
+.ed-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 28px;
+  padding: 0 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* File names keep their own case; the rest of the bar is a label. */
+.ed-name {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ed-busy {
+  color: var(--tally-text);
+}
+
+.ed-dirty {
+  color: var(--tally);
 }

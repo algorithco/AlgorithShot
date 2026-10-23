@@ -233,6 +233,49 @@ body,
   background: #ffc229;
 }
 
+/* "Copy text": the bar under the area while words are picked. */
+.ov-textbar {
+  gap: 4px;
+  padding-left: 12px;
+}
+
+.ov-textbar-note {
+  margin-right: 6px;
+  color: #c9ced6;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.ov-textbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2f4f6;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ov-textbtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ov-textbtn.primary {
+  background: var(--tally);
+  color: var(--tally-ink);
+}
+
+.ov-textbtn.primary:hover {
+  background: #ffc229;
+}
+
 .ov-hint {
   position: absolute;
   left: 50%;

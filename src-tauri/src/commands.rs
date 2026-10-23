@@ -71,13 +71,7 @@ pub fn hotkey_status(app: AppHandle) -> Vec<HotkeyStatus> {
 /// pressing the current key doesn't start a capture.
 #[tauri::command]
 pub fn hotkeys_suspend(app: AppHandle, suspend: bool) -> Vec<HotkeyStatus> {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    if suspend {
-        let _ = app.global_shortcut().unregister_all();
-        Vec::new()
-    } else {
-        hotkeys::register_all(&app)
-    }
+    hotkeys::set_recording(&app, suspend)
 }
 
 #[derive(Serialize)]
@@ -101,7 +95,7 @@ pub fn app_info(app: AppHandle) -> AppInfo {
         save_dir_synced: crate::state::is_cloud_synced(&save_dir),
         save_dir: save_dir.to_string_lossy().into_owned(),
         default_save_dir: st.paths.default_save_dir.to_string_lossy().into_owned(),
-        print_screen_taken: hotkeys::print_screen_taken_by_windows(),
+        print_screen_taken: hotkeys::print_screen_blocked(&app),
         language: st.settings().resolved_language(),
     }
 }
@@ -151,6 +145,43 @@ pub fn capture_cancel(app: AppHandle, session_id: u64) {
 #[tauri::command]
 pub async fn capture_commit(app: AppHandle, req: CommitRequest) -> CmdResult<()> {
     capture::commit(&app, req).map_err(anyhow_err)
+}
+
+#[derive(Serialize)]
+pub struct ElementOut {
+    rect: crate::win::Rect,
+    name: String,
+}
+
+/// UI elements under a point of a monitor in the current capture, smallest
+/// first, relative to that monitor. Empty if element snapping is off.
+#[tauri::command]
+pub async fn element_at(app: AppHandle, session_id: u64, monitor_id: usize, x: i32, y: i32) -> Vec<ElementOut> {
+    let st = state(&app);
+    if !st.settings().elements {
+        return Vec::new();
+    }
+    let Some(session) = st.capture.current().filter(|s| s.id == session_id) else { return Vec::new() };
+    let Some(m) = session.frames.iter().map(|f| &f.monitor).find(|m| m.id == monitor_id) else { return Vec::new() };
+    let (sx, sy) = (m.rect.x + x, m.rect.y + y);
+    let Some(win) = session.windows.iter().find(|w| w.rect.contains(sx, sy)) else { return Vec::new() };
+    let (hwnd, origin) = (win.hwnd, (m.rect.x, m.rect.y));
+    tauri::async_runtime::spawn_blocking(move || crate::smart::uia::elements_at(hwnd, sx, sy, std::time::Duration::from_millis(260)))
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| ElementOut { rect: e.rect.offset(-origin.0, -origin.1), name: e.name })
+        .collect()
+}
+
+/// The words in part of the frozen screen, so the overlay can let the user
+/// pick them right there. The capture stays open.
+#[tauri::command]
+pub async fn capture_read_text(app: AppHandle, session_id: u64, monitor_id: usize, rect: crate::win::Rect) -> CmdResult<Vec<crate::smart::ocr::Line>> {
+    tauri::async_runtime::spawn_blocking(move || capture::read_text(&app, session_id, monitor_id, rect))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(anyhow_err)
 }
 
 #[tauri::command]
@@ -368,6 +399,20 @@ pub async fn cleanup_scan(app: AppHandle) -> CmdResult<Cleanup> {
         old: lib.older_than(cutoff).map_err(anyhow_err)?,
         large: lib.larger_than(3 * 1024 * 1024).map_err(anyhow_err)?,
     })
+}
+
+/// "Save as…" from the quick card: asks where, then writes the file.
+#[tauri::command]
+pub async fn save_as_image(app: AppHandle, id: Option<String>, temp_id: Option<String>) -> CmdResult<()> {
+    let img = match (id, temp_id) {
+        (Some(id), _) => shots::load_rgba(&shot_path(&app, &id)?).map_err(anyhow_err)?,
+        (None, Some(t)) => (*state(&app).image(&t).ok_or("this capture is no longer available")?).clone(),
+        _ => return Err("nothing to save".into()),
+    };
+    tauri::async_runtime::spawn_blocking(move || capture::save_as(&app, &img))
+        .await
+        .map_err(err)?
+        .map_err(anyhow_err)
 }
 
 /// Copies the image and brings Telegram forward so the user can paste it.

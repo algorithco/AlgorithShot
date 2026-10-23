@@ -17,7 +17,7 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
+    EnumWindows, GetClassNameW, GetCursorPos, GetWindowLongPtrW,
     GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
     SetForegroundWindow, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
     SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_RESTORE, SW_SHOWNOACTIVATE, WS_EX_LAYERED,
@@ -288,10 +288,6 @@ pub fn cursor_pos() -> (i32, i32) {
         let _ = GetCursorPos(&mut p);
     }
     (p.x, p.y)
-}
-
-pub fn foreground_window() -> isize {
-    unsafe { GetForegroundWindow().0 as isize }
 }
 
 /// Stops Windows from fading the window in and out, so overlays appear at once.

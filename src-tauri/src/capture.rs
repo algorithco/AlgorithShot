@@ -16,6 +16,7 @@ use windows::Win32::Graphics::Gdi::{
 
 use crate::card::{self, Card};
 use crate::shots::{self, Source};
+use crate::smart::ocr;
 use crate::state::state;
 use crate::win::{self, MonitorInfo, Rect, WindowInfo};
 use crate::{clipboard, imaging, pins, wm};
@@ -122,7 +123,6 @@ struct OverlayStart {
     windows: Vec<WindowInfo>,
     cursor: Option<(i32, i32)>,
     last: Option<Rect>,
-    magnifier: bool,
     snap: bool,
     elements: bool,
 }
@@ -203,7 +203,6 @@ fn begin(app: &AppHandle, mode: &str) -> Result<()> {
             windows,
             cursor: m.rect.contains(cx, cy).then(|| (cx - m.rect.x, cy - m.rect.y)),
             last: last.as_ref().filter(|l| l.monitor_name == m.name).map(|l| l.rect),
-            magnifier: settings.magnifier,
             snap: settings.snap,
             elements: settings.elements,
         };
@@ -247,6 +246,25 @@ pub fn cancel(app: &AppHandle, session_id: u64) {
     if state(app).capture.take(session_id).is_some() {
         end_overlays(app, session_id);
     }
+}
+
+/// The words in an area of the frozen screen, relative to the monitor. The
+/// capture stays open, so the overlay can let the user pick them in place.
+pub fn read_text(app: &AppHandle, session_id: u64, monitor_id: usize, rect: Rect) -> Result<Vec<ocr::Line>> {
+    let session = state(app).capture.current().filter(|s| s.id == session_id).ok_or_else(|| anyhow!("this capture has already ended"))?;
+    let frame = session.frames.iter().find(|f| f.monitor.id == monitor_id).ok_or_else(|| anyhow!("monitor {monitor_id} is gone"))?;
+    let m = &frame.monitor;
+    let rect = rect.intersect(&Rect::new(0, 0, m.rect.w, m.rect.h)).ok_or_else(|| anyhow!("the selection is empty"))?;
+    let img = imaging::crop(&frame.rgba, m.rect.w as u32, m.rect.h as u32, rect).ok_or_else(|| anyhow!("the selection is empty"))?;
+    crate::smart::init_thread();
+    let best = ocr::read(&img)?.into_iter().next().unwrap_or_default();
+    Ok(best
+        .lines
+        .into_iter()
+        .map(|line| ocr::Line {
+            words: line.words.into_iter().map(|w| ocr::Word { rect: w.rect.offset(rect.x, rect.y), ..w }).collect(),
+        })
+        .collect())
 }
 
 /// Tells the overlays to clear and hide. They hide themselves once the
@@ -349,12 +367,16 @@ fn source_of(windows: &[WindowInfo], area: Rect) -> Source {
         _ => win::friendly_app_name(&w.app, &w.title),
     };
     let title = if app == "Desktop" { String::new() } else { w.title.clone() };
-    Source { app, title, url: String::new() }
+    Source { app, title, url: String::new(), hwnd: w.hwnd, exe: w.app.clone() }
 }
 
-fn finish(app: &AppHandle, img: RgbaImage, src: Source, at: Rect, action: &str) -> Result<()> {
+fn finish(app: &AppHandle, img: RgbaImage, mut src: Source, at: Rect, action: &str) -> Result<()> {
     let st = state(app);
     let settings = st.settings();
+    // Browsers: remember the page address, so the library can search it.
+    if crate::smart::uia::is_browser(&src.exe) {
+        src.url = crate::smart::uia::browser_url(src.hwnd, Duration::from_millis(400)).unwrap_or_default();
+    }
     match action {
         "pin" => pins::open(app, img, at),
         "text" | "qr" => crate::smart::screen_tool(app, action, &img),
@@ -394,7 +416,7 @@ fn show_result(app: &AppHandle, img: RgbaImage, src: &Source, copied: bool) -> R
     Ok(())
 }
 
-fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
+pub fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
     use tauri_plugin_dialog::DialogExt;
     let name = format!("Screenshot {}.png", chrono::Local::now().format("%Y-%m-%d %H-%M-%S"));
     let picked = app
@@ -429,4 +451,24 @@ pub fn monitor_at(app: &AppHandle, x: i32, y: i32) -> Option<tauri::Monitor> {
             let (p, s) = (m.position(), m.size());
             x >= p.x && y >= p.y && x < p.x + s.width as i32 && y < p.y + s.height as i32
         })
+}
+
+#[cfg(test)]
+mod tests {
+    /// Reads the real screen into memory (nothing is saved or shown).
+    #[test]
+    fn grabs_the_main_monitor_at_full_resolution() {
+        let monitors = crate::win::monitors();
+        let m = &monitors[0];
+        let started = std::time::Instant::now();
+        let rgba = super::grab(m.rect).unwrap();
+        let took = started.elapsed();
+        assert_eq!(rgba.len(), (m.rect.w * m.rect.h * 4) as usize);
+        assert!(rgba.chunks_exact(4).all(|p| p[3] == 255));
+        let first = &rgba[0..4];
+        assert!(rgba.chunks_exact(4).any(|p| p != first), "frame is blank");
+        let windows = crate::win::visible_windows();
+        assert!(!windows.is_empty());
+        println!("grabbed {}x{} at {:.0}% in {:?}; {} windows", m.rect.w, m.rect.h, m.scale * 100.0, took, windows.len());
+    }
 }

@@ -4,7 +4,7 @@
 
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
-import type { CardPayload, Settings, Shot } from "../shared/api";
+import type { CardPayload, Rect, Settings, Shot, TextLine } from "../shared/api";
 
 const APPS = ["Telegram", "Chrome", "Edge", "VS Code", "Excel", "Explorer", "Figma"];
 const TITLES: Record<string, string> = {
@@ -67,7 +67,6 @@ const settings: Settings = {
   showCard: true,
   openEditor: false,
   cardSeconds: 6,
-  magnifier: true,
   snap: true,
   elements: true,
   hotkeys: { capture: "PrintScreen", captureAlt: "Ctrl+Shift+PrintScreen", text: "", qr: "", fullScreen: "", repeat: "", library: "" },
@@ -178,6 +177,26 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
     }
     case "share_telegram":
       return true;
+    case "editor_info": {
+      const shot = { ...shots[0], width: 1600, height: 1000 };
+      return { name: shot.name, width: 1600, height: 1000, format: "png", hasOriginal: true, shot };
+    }
+    case "editor_estimate":
+      return { bytes: 184_320, quality: 90 };
+    case "editor_save":
+      return shots[0];
+    case "privacy_scan":
+      return [
+        { kind: "email", preview: "o•••@gmail.com", rect: { x: 470, y: 250, w: 360, h: 34 } },
+        { kind: "phone", preview: "+998 •• ••• •• 67", rect: { x: 470, y: 330, w: 300, h: 34 } },
+        { kind: "card", preview: "8600 •••• •••• 1234", rect: { x: 470, y: 410, w: 380, h: 34 } },
+      ];
+    case "capture_read_text":
+      return new Promise((done) => setTimeout(() => done(fakeWords(args.rect as Rect)), 600));
+    case "copy_text":
+      // Lets a test see what would have gone to the clipboard.
+      (globalThis as { __copied?: unknown }).__copied = args.text;
+      return null;
     case "drag_icon":
     case "temp_file":
       return "C:\\temp\\x.png";
@@ -185,6 +204,24 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
       console.debug("[mock]", cmd, args);
       return null;
   }
+}
+
+/** Rows of made-up words filling an area, like text recognition would return. */
+function fakeWords(area: Rect): TextLine[] {
+  const vocab = ["Salom", "dunyo", "Algorithco", "Shot", "matn", "nusxalash", "+998", "90", "123-45-67", "invoice", "2026", "Toshkent"];
+  const lines: TextLine[] = [];
+  for (let y = area.y + 14, n = 0; y + 26 < area.y + area.h; y += 42, n++) {
+    const words: TextLine["words"] = [];
+    for (let x = area.x + 16, i = 0; ; i++) {
+      const text = vocab[(n * 5 + i * 3) % vocab.length];
+      const w = text.length * 13 + 8;
+      if (x + w > area.x + area.w - 12) break;
+      words.push({ text, rect: { x, y, w, h: 26 } });
+      x += w + 14;
+    }
+    if (words.length) lines.push({ words });
+  }
+  return lines;
 }
 
 const SAMPLE_CARDS: Record<string, CardPayload> = {
@@ -224,7 +261,6 @@ export function installMocks(label: string) {
           ],
           cursor: [Math.round(700 * sx), Math.round(400 * sy)],
           last: null,
-          magnifier: true,
           snap: true,
           elements: true,
         }),

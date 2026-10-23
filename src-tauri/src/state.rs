@@ -21,7 +21,6 @@ pub struct Paths {
     /// Untouched copies of screenshots that were edited, named `{id}.{ext}`.
     pub originals: PathBuf,
     pub default_save_dir: PathBuf,
-    pub logs: PathBuf,
 }
 
 impl Paths {
@@ -40,7 +39,6 @@ impl Paths {
             thumbs: cache.join("thumbs"),
             originals: data.join("originals"),
             default_save_dir: pictures.join("Algorithco Shot"),
-            logs: p.app_log_dir()?,
         })
     }
 }

@@ -1,9 +1,10 @@
 // The capture overlay's canvas: draws the frozen screen, the dimming, the
-// selection with its viewfinder corners, the magnifier and the ruler, and
-// turns mouse and keyboard input into a selection. Everything is in
-// physical pixels; `ratio` converts from CSS pixels.
+// selection with its viewfinder corners, the colour picker's magnifier and
+// the ruler, the words picked after "copy text", and turns mouse and
+// keyboard input into a selection. Everything is in physical pixels;
+// `ratio` converts from CSS pixels.
 
-import type { CommitAction, Rect, WindowInfo } from "../shared/api";
+import type { CommitAction, Rect, TextLine, WindowInfo } from "../shared/api";
 import {
   bottom,
   contains,
@@ -21,11 +22,15 @@ import {
   type Handle,
   type Pt,
 } from "../shared/geometry";
+import { flatten, pickedBands, pickedText, wordNear, type PickWord } from "./textpick";
 
 export type Mode = "region" | "window" | "screen" | "fixed" | "text" | "qr" | "color" | "ruler";
-export type Phase = "idle" | "press" | "draw" | "selected" | "move" | "resize" | "measure";
+/** "text": the screen stays frozen while the user picks words in the area. */
+export type Phase = "idle" | "press" | "draw" | "selected" | "move" | "resize" | "measure" | "text";
 
 export type Element = { rect: Rect; name: string };
+
+export type TextView = { state: "reading" | "ready" | "empty" | "error"; error: string; words: number; picked: number };
 
 /** What the React chrome needs to know. */
 export type View = {
@@ -37,6 +42,8 @@ export type View = {
   ratio: number;
   width: number;
   height: number;
+  /** While picking text: how the reading went and how much is picked. */
+  text: TextView | null;
 };
 
 export type Callbacks = {
@@ -44,6 +51,9 @@ export type Callbacks = {
   commit(rect: Rect, action: CommitAction): void;
   cancel(): void;
   color(hex: string): void;
+  /** Read the text in an area (answered with setText). */
+  readText(rect: Rect): void;
+  copyText(text: string): void;
   /** Ask for the UI elements under a point (answered with setElements). */
   elementsAt?(p: Pt): void;
 };
@@ -56,7 +66,6 @@ export type LoadArgs = {
   windows: WindowInfo[];
   mode: Mode;
   cursor: [number, number] | null;
-  magnifier: boolean;
   snap: boolean;
 };
 
@@ -81,7 +90,6 @@ export class Engine {
   phase: Phase = "idle";
   sel: Rect | null = null;
   fixed = { w: 1280, h: 720 };
-  magnifier = true;
   snapOn = true;
 
   private ctx: CanvasRenderingContext2D;
@@ -103,6 +111,12 @@ export class Engine {
   private frame = 0;
   private lastView = "";
   private lines: { xs: number[]; ys: number[] } = { xs: [], ys: [] };
+  // Picking text in the "text" phase. `pick` holds word indexes in reading order.
+  private words: PickWord[] = [];
+  private textState: TextView["state"] = "reading";
+  private textError = "";
+  private pick: { a: number; b: number } | null = null;
+  private picking: { from: Pt; moved: boolean } | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -125,7 +139,6 @@ export class Engine {
     this.canvas.height = a.height;
     this.ratio = a.width / Math.max(1, window.innerWidth);
     this.windows = a.windows;
-    this.magnifier = a.magnifier;
     this.snapOn = a.snap;
     this.elements = [];
     this.level = 0;
@@ -147,6 +160,7 @@ export class Engine {
     this.sel = null;
     this.hover = null;
     this.ruler = null;
+    this.dropText();
     this.phase = "idle";
     this.lastView = "";
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -160,6 +174,7 @@ export class Engine {
     this.mode = mode;
     this.sel = null;
     this.ruler = null;
+    this.dropText();
     this.phase = "idle";
     this.updateHover();
     this.changed();
@@ -192,6 +207,41 @@ export class Engine {
     this.changed();
   }
 
+  /** Keeps the screen frozen and reads the text in `rect`, to pick from. */
+  readText(rect: Rect) {
+    this.dropText();
+    this.sel = { ...rect };
+    this.phase = "text";
+    this.textState = "reading";
+    this.cb.readText(this.sel);
+    this.updateCursor();
+    this.changed();
+  }
+
+  /** The words read in `rect`, or null and why reading failed. */
+  setText(rect: Rect, lines: TextLine[] | null, error = "") {
+    if (this.phase !== "text" || !this.sel || !sameRect(this.sel, rect)) return;
+    this.words = lines ? flatten(lines) : [];
+    this.textState = !lines ? "error" : this.words.length ? "ready" : "empty";
+    this.textError = error;
+    this.updateCursor();
+    this.changed();
+  }
+
+  /** Copies the picked words, or every word when none are picked or `all`. */
+  copyText(all = false) {
+    if (!this.words.length) return;
+    const range = this.pick && !all ? this.pick : { a: 0, b: this.words.length - 1 };
+    this.cb.copyText(pickedText(this.words, range.a, range.b));
+  }
+
+  private dropText() {
+    this.words = [];
+    this.pick = null;
+    this.picking = null;
+    this.textError = "";
+  }
+
   // ---- input ----
 
   private pt(e: MouseEvent): Pt {
@@ -219,6 +269,20 @@ export class Engine {
       this.changed();
       return;
     }
+    if (this.phase === "text" && this.sel) {
+      if (contains(this.sel, p)) {
+        const i = wordNear(this.words, p);
+        this.pick = i >= 0 ? { a: i, b: i } : null;
+        this.picking = { from: p, moved: false };
+        this.changed();
+        return;
+      }
+      // Outside the area: start a new one from here.
+      this.dropText();
+      this.sel = null;
+      this.phase = "idle";
+      this.updateHover();
+    }
     if (this.phase === "selected" && this.sel) {
       const h = handleAt(this.sel, p, 8 * this.ratio);
       if (h) {
@@ -242,6 +306,7 @@ export class Engine {
     }
     if (this.mode === "fixed") {
       this.sel = frameAt(p, this.fixed.w, this.fixed.h, this.bounds);
+      if (!e.ctrlKey) return this.cb.commit(this.sel, "done");
       this.phase = "selected";
       this.changed();
       return;
@@ -280,6 +345,10 @@ export class Engine {
       case "measure":
         if (this.ruler) this.ruler.b = p;
         break;
+      case "text":
+        if (this.picking && !this.picking.moved) this.picking.moved = Math.hypot(p.x - this.picking.from.x, p.y - this.picking.from.y) >= 3 * this.ratio;
+        if (this.picking?.moved && this.pick) this.pick.b = wordNear(this.words, p);
+        break;
       case "idle":
         this.updateHover();
         if (this.mode === "region" || this.mode === "text" || this.mode === "qr") this.cb.elementsAt?.(p);
@@ -293,20 +362,22 @@ export class Engine {
     if (e.button !== 0 || !this.bitmap) return;
     switch (this.phase) {
       case "press": {
-        // A click: take what's highlighted.
+        // A click takes what's highlighted, straight away.
         const target = this.hover;
         this.phase = "idle";
         if (!target) break;
-        if (this.mode === "window") return this.cb.commit(target, "done");
-        if (this.mode === "text" || this.mode === "qr") return this.cb.commit(target, this.mode);
-        this.sel = { ...target };
-        this.phase = "selected";
-        break;
+        if (e.ctrlKey && this.mode !== "text" && this.mode !== "qr") {
+          this.sel = { ...target };
+          this.phase = "selected";
+          break;
+        }
+        return this.finish(target);
       }
       case "draw":
         if (this.sel && this.sel.w >= 2 && this.sel.h >= 2) {
-          if (this.mode === "text" || this.mode === "qr") return this.cb.commit(this.sel, this.mode);
-          this.phase = "selected";
+          // Letting go captures and copies; with Ctrl the box stays to adjust.
+          if (e.ctrlKey && this.mode !== "text" && this.mode !== "qr") this.phase = "selected";
+          else return this.finish(this.sel);
         } else {
           this.sel = null;
           this.phase = "idle";
@@ -320,18 +391,37 @@ export class Engine {
       case "measure":
         this.phase = "idle";
         break;
+      case "text":
+        // A click without a drag drops the pick, as in a document.
+        if (this.picking && !this.picking.moved) this.pick = null;
+        this.picking = null;
+        break;
     }
     this.updateCursor();
     this.changed();
   }
 
+  /** A finished selection: captured, or for "copy text" read in place. */
+  private finish(rect: Rect) {
+    if (this.mode === "text") this.readText(rect);
+    else this.cb.commit(rect, this.mode === "qr" ? "qr" : "done");
+  }
+
   doubleClick(e: MouseEvent) {
-    if (this.phase === "selected" && this.sel && contains(this.sel, this.pt(e))) this.cb.commit(this.sel, "done");
+    const p = this.pt(e);
+    if (this.phase === "text" && this.sel && contains(this.sel, p)) {
+      // Picks the word under the pointer.
+      const i = wordNear(this.words, p);
+      if (i >= 0) this.pick = { a: i, b: i };
+      this.changed();
+      return;
+    }
+    if (this.phase === "selected" && this.sel && contains(this.sel, p)) this.cb.commit(this.sel, "done");
   }
 
   /** Right click: drop the selection, or close if there is none. */
   rightClick() {
-    if (this.phase === "selected" || this.ruler) this.reset();
+    if (this.phase === "selected" || this.phase === "text" || this.ruler) this.reset();
     else this.cb.cancel();
   }
 
@@ -350,13 +440,30 @@ export class Engine {
     const ctrl = e.ctrlKey || e.metaKey;
     const target = this.target();
 
+    if (this.phase === "text") {
+      if (k === "Escape") {
+        this.cb.cancel();
+        return true;
+      }
+      if (k === "Enter" || (ctrl && lower === "c")) {
+        this.copyText();
+        return true;
+      }
+      if (ctrl && lower === "a") {
+        if (this.words.length) this.pick = { a: 0, b: this.words.length - 1 };
+        this.changed();
+        return true;
+      }
+      if (lower === "c" && !ctrl) return true; // not the colour picker while picking text
+    }
+
     if (k === "Escape") {
       if (this.phase === "selected" || this.ruler) this.reset();
       else this.cb.cancel();
       return true;
     }
     if (k === "Enter") {
-      if (target) this.cb.commit(target, this.mode === "text" || this.mode === "qr" ? this.mode : "done");
+      if (target) this.finish(target);
       return true;
     }
     if (ctrl && (lower === "c" || lower === "s")) {
@@ -383,7 +490,7 @@ export class Engine {
         if (target) this.cb.commit(target, "pin");
         return true;
       case "t":
-        if (selected) this.cb.commit(this.sel!, "text");
+        if (selected) this.readText(this.sel!);
         else this.setMode("text");
         return true;
       case "q":
@@ -419,6 +526,7 @@ export class Engine {
   private reset() {
     this.sel = null;
     this.ruler = null;
+    this.dropText();
     this.phase = "idle";
     this.updateHover();
     this.updateCursor();
@@ -483,6 +591,8 @@ export class Engine {
       const h = handleAt(this.sel, this.cursor, 8 * this.ratio);
       if (h) cursor = CURSORS[h];
       else if (contains(this.sel, this.cursor)) cursor = "move";
+    } else if (this.phase === "text" && this.sel) {
+      if (contains(this.sel, this.cursor)) cursor = this.words.length ? "text" : "default";
     } else if (this.phase === "move") cursor = "move";
     else if (this.phase === "resize") cursor = CURSORS[this.handle];
     if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
@@ -507,6 +617,10 @@ export class Engine {
       ratio: this.ratio,
       width: this.width,
       height: this.height,
+      text:
+        this.phase === "text"
+          ? { state: this.textState, error: this.textError, words: this.words.length, picked: this.pick ? Math.abs(this.pick.b - this.pick.a) + 1 : 0 }
+          : null,
     };
     const key = JSON.stringify(view);
     if (key !== this.lastView) {
@@ -525,7 +639,7 @@ export class Engine {
     if (!this.bitmap) return;
     ctx.drawImage(this.bitmap, 0, 0);
 
-    const selecting = this.phase === "draw" || this.phase === "selected" || this.phase === "move" || this.phase === "resize";
+    const selecting = this.phase === "draw" || this.phase === "selected" || this.phase === "move" || this.phase === "resize" || this.phase === "text";
     const focus = selecting ? this.sel : this.phase === "idle" || this.phase === "press" ? this.hover : null;
 
     if (this.mode !== "color") {
@@ -538,10 +652,65 @@ export class Engine {
     if (focus && this.mode !== "screen") this.drawFrame(focus, selecting);
     if (focus && this.mode === "screen") this.drawFrame(focus, true);
     if (this.ruler) this.drawRuler(this.ruler.a, this.ruler.b);
+    if (this.phase === "text" && this.sel) {
+      if (this.textState === "reading") this.drawScan(this.sel);
+      else this.drawWords(this.sel);
+    }
 
-    const aiming = this.phase === "idle" || this.phase === "press" || this.phase === "draw" || this.phase === "resize";
-    if (aiming && this.mode !== "screen" && this.mode !== "fixed") this.drawCrosshair();
-    if ((this.magnifier && aiming && this.mode !== "screen") || this.mode === "color") this.drawMagnifier();
+    if (this.mode === "color") this.drawMagnifier();
+  }
+
+  /** While the text is read: a line sweeping down the area. */
+  private drawScan(area: Rect) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const { ctx, ratio } = this;
+    const lw = Math.max(1, Math.round(ratio));
+    const y = area.y + ((performance.now() % 1100) / 1100) * area.h;
+    const trail = Math.max(8 * ratio, area.h * 0.2);
+    const fade = ctx.createLinearGradient(0, y - trail, 0, y);
+    fade.addColorStop(0, "rgba(255, 180, 0, 0)");
+    fade.addColorStop(1, "rgba(255, 180, 0, 0.26)");
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(area.x, area.y, area.w, area.h);
+    ctx.clip();
+    ctx.fillStyle = fade;
+    ctx.fillRect(area.x, y - trail, area.w, trail);
+    ctx.fillStyle = TALLY;
+    ctx.fillRect(area.x, y - lw, area.w, lw);
+    ctx.restore();
+    // Keeps sweeping until the words arrive.
+    if (!this.frame) this.frame = requestAnimationFrame(() => this.draw());
+  }
+
+  /** The area's words stay bright, the rest of it dims, picked words are highlighted. */
+  private drawWords(area: Rect) {
+    const { ctx, ratio, bitmap } = this;
+    if (!bitmap || !this.words.length) return;
+    const pad = Math.round(2 * ratio);
+    const grown = (r: Rect) => intersect({ x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 }, this.bounds);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(area.x, area.y, area.w, area.h);
+    ctx.clip();
+    ctx.fillStyle = "rgba(8, 10, 14, 0.42)";
+    ctx.fillRect(area.x, area.y, area.w, area.h);
+    // Repainted from the frozen screen, so overlapping lines stay clean.
+    for (const line of pickedBands(this.words, 0, this.words.length - 1)) {
+      const r = grown(line);
+      if (r) ctx.drawImage(bitmap, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
+    }
+    if (this.pick) {
+      ctx.fillStyle = "rgba(255, 180, 0, 0.38)";
+      for (const band of pickedBands(this.words, this.pick.a, this.pick.b)) {
+        const r = grown(band);
+        if (!r) continue;
+        ctx.beginPath();
+        ctx.roundRect(r.x, r.y, r.w, r.h, 3 * ratio);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   private drawFrame(r: Rect, strong: boolean) {
@@ -582,15 +751,6 @@ export class Engine {
       ctx.fillRect(x0, my - g / 2, t, g);
       ctx.fillRect(x1 - t, my - g / 2, t, g);
     }
-  }
-
-  private drawCrosshair() {
-    const { ctx, ratio, cursor } = this;
-    if (cursor.x < 0) return;
-    const lw = Math.max(1, Math.round(ratio));
-    ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
-    ctx.fillRect(0, Math.floor(cursor.y), this.width, lw);
-    ctx.fillRect(Math.floor(cursor.x), 0, lw, this.height);
   }
 
   private drawMagnifier() {

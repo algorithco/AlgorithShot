@@ -19,6 +19,9 @@ pub struct Source {
     pub app: String,
     pub title: String,
     pub url: String,
+    /// The window and its program, used to look up a browser's address.
+    pub hwnd: isize,
+    pub exe: String,
 }
 
 const IMAGE_EXTS: [&str; 5] = ["png", "jpg", "jpeg", "webp", "bmp"];
@@ -325,6 +328,22 @@ pub fn revert(app: &AppHandle, id: &str) -> Result<Shot> {
     st.library.file_changed(id, bytes, w, h, Some(false), true)?;
     after_change(app, id, false);
     st.library.get(id)?.ok_or_else(|| anyhow!("not found"))
+}
+
+/// Moves screenshots older than the setting to the Recycle Bin (starred ones
+/// stay). Returns how many went.
+pub fn auto_clean(app: &AppHandle) -> Result<usize> {
+    let st = state(app);
+    let days = st.settings().auto_clean_days;
+    if days == 0 {
+        return Ok(0);
+    }
+    let cutoff = Local::now().timestamp_millis() - days as i64 * 86_400_000;
+    let ids: Vec<String> = st.library.older_than(cutoff)?.into_iter().map(|s| s.id).collect();
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    Ok(delete(app, &ids, false)?.deleted)
 }
 
 pub fn load_rgba(path: &Path) -> Result<RgbaImage> {

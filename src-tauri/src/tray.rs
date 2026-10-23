@@ -1,4 +1,4 @@
-//! The tray icon: left click captures, right click opens the menu.
+//! The tray icon: left click opens the app, right click opens the menu.
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -58,7 +58,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                capture::start(tray.app_handle(), "region");
+                open_main(tray.app_handle(), "library");
             }
         })
         .build(app)?;
