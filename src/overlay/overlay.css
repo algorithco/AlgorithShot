@@ -1,0 +1,251 @@
+/* The overlay sits on a dimmed screenshot, so its chrome is always dark,
+   whatever the app theme. */
+
+html,
+body,
+#root {
+  background: transparent;
+  overflow: hidden;
+}
+
+.ov {
+  position: fixed;
+  inset: 0;
+  font: 13px/1.3 var(--font-ui);
+  color: #eef0f3;
+}
+
+.ov-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.ov-toolbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 12px;
+  background: rgba(17, 19, 23, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+  z-index: 5;
+}
+
+.ov-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #c9ced6;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ov-tool.icon-only {
+  width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.ov-tool:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.ov-tool[aria-pressed="true"] {
+  background: rgba(255, 180, 0, 0.16);
+  color: var(--tally);
+}
+
+.ov-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 5px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.ov-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  min-width: 150px;
+  padding: 5px;
+  border-radius: 10px;
+  background: rgba(17, 19, 23, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+}
+
+.ov-menu button {
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #e3e6ea;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ov-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ov-label {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: rgba(17, 19, 23, 0.88);
+  color: #dfe3e8;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ov-label .measure {
+  color: var(--tally);
+  font-weight: 600;
+}
+
+/* The size readout: the number people came for, so it's the loudest text. */
+.ov-size {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--tally);
+  color: var(--tally-ink);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: text;
+  z-index: 4;
+}
+
+.ov-size span {
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.ov-size.editing {
+  padding: 0 4px;
+  cursor: default;
+}
+
+.ov-size input {
+  width: 58px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--tally-ink);
+  font: inherit;
+  text-align: center;
+  outline: none;
+}
+
+.ov-size input:focus {
+  background: #fff;
+}
+
+.ov-size button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--tally-ink);
+  color: var(--tally);
+  cursor: pointer;
+}
+
+.ov-actions {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 11px;
+  background: rgba(17, 19, 23, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  z-index: 5;
+}
+
+.ov-act {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #c9ced6;
+  cursor: pointer;
+}
+
+.ov-act:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.ov-done {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 34px;
+  margin-left: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tally);
+  color: var(--tally-ink);
+  cursor: pointer;
+}
+
+.ov-done:hover {
+  background: #ffc229;
+}
+
+.ov-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 40px);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(17, 19, 23, 0.82);
+  color: #c9ced6;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}

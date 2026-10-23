@@ -1,0 +1,515 @@
+/* Algorithco Shot design tokens and base styles.
+   Look: a precision lightbox. Cool light surface (or darkroom in dark mode),
+   graphite type, one amber "tally light" accent, Bahnschrift (Windows' DIN)
+   for headings and measurements, and viewfinder corner brackets as the
+   signature mark. */
+
+:root {
+  color-scheme: light dark;
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, monospace;
+
+  --tally: #ffb400;
+  --tally-ink: #16191e;
+
+  /* Light: the lightbox. */
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --surface-2: #f8f9fa;
+  --sunken: #e9ecef;
+  --ink: #16191e;
+  --ink-2: #3a414b;
+  --muted: #6b7380;
+  --line: #dde1e6;
+  --line-strong: #c5cbd3;
+  --tally-text: #9a6100; /* amber that passes contrast on white */
+  --tally-soft: rgba(255, 180, 0, 0.16);
+  --danger: #c8372a;
+  --danger-soft: rgba(200, 55, 42, 0.1);
+  --ok: #1f8a54;
+  --checker-a: #ffffff;
+  --checker-b: #e7eaee;
+  --shadow-1: 0 1px 2px rgba(22, 25, 30, 0.06), 0 1px 1px rgba(22, 25, 30, 0.04);
+  --shadow-2: 0 10px 30px rgba(22, 25, 30, 0.14), 0 2px 6px rgba(22, 25, 30, 0.08);
+
+  --radius-s: 4px;
+  --radius: 8px;
+  --radius-l: 12px;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121417;
+    --surface: #1a1d22;
+    --surface-2: #1f2329;
+    --sunken: #0d0f12;
+    --ink: #eceef1;
+    --ink-2: #c7ccd3;
+    --muted: #8f98a5;
+    --line: #2a2f36;
+    --line-strong: #3a414b;
+    --tally-text: #ffc53d;
+    --tally-soft: rgba(255, 180, 0, 0.14);
+    --danger: #ff6b5c;
+    --danger-soft: rgba(255, 107, 92, 0.12);
+    --ok: #4cc98a;
+    --checker-a: #23272d;
+    --checker-b: #1a1d22;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #121417;
+  --surface: #1a1d22;
+  --surface-2: #1f2329;
+  --sunken: #0d0f12;
+  --ink: #eceef1;
+  --ink-2: #c7ccd3;
+  --muted: #8f98a5;
+  --line: #2a2f36;
+  --line-strong: #3a414b;
+  --tally-text: #ffc53d;
+  --tally-soft: rgba(255, 180, 0, 0.14);
+  --danger: #ff6b5c;
+  --danger-soft: rgba(255, 107, 92, 0.12);
+  --ok: #4cc98a;
+  --checker-a: #23272d;
+  --checker-b: #1a1d22;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font: 14px/1.45 var(--font-ui);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--tally-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--tally);
+  outline-offset: 2px;
+}
+
+/* ---- type ---- */
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Small condensed caps used like the markings on a film's edge:
+   dimensions, sizes, counts. */
+.edge {
+  font-family: var(--font-display);
+  font-stretch: 87.5%;
+  font-variation-settings: "wdth" 85;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.measure {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the bracket: viewfinder corners, the app's signature mark ---- */
+
+/* Drawn on an overlay layer so it works on top of any background. */
+.brackets {
+  --b-len: 12px;
+  --b-w: 2px;
+  --b-color: var(--tally);
+  position: relative;
+}
+
+.brackets::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--b-color), var(--b-color)) top left / var(--b-len) var(--b-w),
+    linear-gradient(var(--b-color), var(--b-color)) top left / var(--b-w) var(--b-len),
+    linear-gradient(var(--b-color), var(--b-color)) top right / var(--b-len) var(--b-w),
+    linear-gradient(var(--b-color), var(--b-color)) top right / var(--b-w) var(--b-len),
+    linear-gradient(var(--b-color), var(--b-color)) bottom left / var(--b-len) var(--b-w),
+    linear-gradient(var(--b-color), var(--b-color)) bottom left / var(--b-w) var(--b-len),
+    linear-gradient(var(--b-color), var(--b-color)) bottom right / var(--b-len) var(--b-w),
+    linear-gradient(var(--b-color), var(--b-color)) bottom right / var(--b-w) var(--b-len);
+  background-repeat: no-repeat;
+}
+
+.checker {
+  background-color: var(--checker-a);
+  background-image:
+    linear-gradient(45deg, var(--checker-b) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--checker-b) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--checker-b) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--checker-b) 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+}
+
+/* ---- controls ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, transform 0.06s;
+}
+
+.btn:hover {
+  background: var(--surface-2);
+  border-color: var(--muted);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--tally);
+  border-color: var(--tally);
+  color: var(--tally-ink);
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: #ffc229;
+  border-color: #ffc229;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn-ghost:hover {
+  background: var(--sunken);
+  border-color: transparent;
+}
+
+.btn-danger {
+  color: var(--danger);
+}
+
+.btn-danger:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.btn-danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-danger-solid:hover {
+  filter: brightness(1.08);
+  background: var(--danger);
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.icon-btn:hover {
+  background: var(--sunken);
+  color: var(--ink);
+}
+
+.icon-btn.on {
+  color: var(--tally-text);
+}
+
+.input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  user-select: text;
+}
+
+.input:focus {
+  border-color: var(--tally);
+  box-shadow: 0 0 0 3px var(--tally-soft);
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 5px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  background: var(--surface);
+  font: 600 12px/1 var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid var(--line-strong);
+  background: var(--sunken);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 0.18s var(--ease), background 0.15s;
+}
+
+.switch[aria-checked="true"] {
+  background: var(--tally);
+  border-color: var(--tally);
+}
+
+.switch[aria-checked="true"]::after {
+  transform: translateX(16px);
+  background: var(--tally-ink);
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+}
+
+.segmented button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-1);
+  font-weight: 600;
+}
+
+.select {
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7380' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center;
+  appearance: none;
+  cursor: pointer;
+}
+
+/* ---- dialogs and toasts ---- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 12, 15, 0.42);
+  z-index: 100;
+  animation: fade-in 0.12s ease-out;
+}
+
+.dialog {
+  width: min(440px, calc(100vw - 48px));
+  padding: 22px 22px 18px;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-2);
+  animation: rise 0.16s var(--ease);
+}
+
+.dialog h2 {
+  margin: 0 0 8px;
+  font: 600 19px/1.25 var(--font-display);
+}
+
+.dialog p {
+  margin: 0 0 18px;
+  color: var(--ink-2);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--bg);
+  box-shadow: var(--shadow-2);
+  pointer-events: auto;
+  animation: rise 0.18s var(--ease);
+}
+
+.toast.error {
+  background: var(--danger);
+  color: #fff;
+}
+
+.toast button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toast.plain {
+  padding-right: 14px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Scrollbars that sit quietly on both themes. */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--muted);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
