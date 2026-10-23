@@ -138,6 +138,7 @@ pub fn run() {
             commands::capture_commit,
             commands::copy_color,
             commands::element_at,
+            commands::capture_read_text,
             commands::copy_text,
             commands::card_ready,
             commands::card_hide,

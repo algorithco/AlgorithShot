@@ -34,7 +34,7 @@ export const en = {
   "ov.hint.window": "Click a window to capture it · Esc to cancel",
   "ov.hint.screen": "Click to capture this screen · Esc to cancel",
   "ov.hint.fixed": "Move the frame and click to capture · Esc to cancel",
-  "ov.hint.text": "Select the text you want to copy · Esc to cancel",
+  "ov.hint.text": "Select the area with the text, then pick the words to copy · Esc to cancel",
   "ov.hint.qr": "Select the QR code or barcode · Esc to cancel",
   "ov.hint.color": "Click to copy the colour · Esc to cancel",
   "ov.hint.ruler": "Drag to measure · Esc to close",
@@ -296,6 +296,15 @@ export const en = {
   "pv.password": "Password",
   "pv.face": "Face",
   "card.saveAs": "Save as…",
+  "ov.hint.pick": "Drag over the words to select them · Double-click a word · Ctrl+A selects all · Ctrl+C copies · Esc closes",
+  "ov.pick.reading": "Reading the text…",
+  "ov.pick.empty": "No text found here. Select another area.",
+  "ov.pick.failed": "Couldn't read the text: {error}",
+  "ov.pick.none": "Select words, or copy all of it",
+  "ov.pick.picked": "Words selected: {n}",
+  "ov.pick.copy": "Copy",
+  "ov.pick.copyAll": "Copy all",
+  "ov.pick.copied": "Copied",
 } as const;
 
 export type Key = keyof typeof en;

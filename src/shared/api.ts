@@ -109,6 +109,9 @@ export type Cleanup = { duplicates: Shot[][]; old: Shot[]; large: Shot[] };
 
 export type CommitAction = "done" | "copy" | "save_as" | "edit" | "pin" | "text" | "qr";
 
+/** Recognised text: lines of words, each with its box (physical pixels). */
+export type TextLine = { words: { text: string; rect: Rect }[] };
+
 export type CardPayload =
   | { kind: "shot"; shot: Shot | null; tempId: string | null; width: number; height: number; copied: boolean }
   | { kind: "text"; text: string; copied: boolean }
@@ -146,6 +149,9 @@ export const api = {
   copyColor: (hex: string) => invoke<void>("copy_color", { hex }),
   elementAt: (sessionId: number, monitorId: number, x: number, y: number) =>
     invoke<{ rect: Rect; name: string }[]>("element_at", { sessionId, monitorId, x, y }),
+  /** The words in part of the frozen screen; the capture stays open. */
+  readScreenText: (sessionId: number, monitorId: number, rect: Rect) =>
+    invoke<TextLine[]>("capture_read_text", { sessionId, monitorId, rect }),
   copyText: (text: string) => invoke<void>("copy_text", { text }),
 
   cardReady: (width: number, height: number) => invoke<void>("card_ready", { width, height }),

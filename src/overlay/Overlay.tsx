@@ -75,6 +75,9 @@ export function Overlay() {
   const [view, setView] = useState<View | null>(null);
   const [menu, setMenu] = useState<null | "fixed" | "timer">(null);
   const [editing, setEditing] = useState(false);
+  // "Copied" shows on the text bar for a moment after copying.
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef(0);
 
   const commit = useCallback((rect: Rect, action: CommitAction, allScreens = false) => {
     const s = sessionRef.current;
@@ -117,6 +120,25 @@ export function Overlay() {
       color: (hex) => {
         api.copyColor(hex);
         cancel();
+      },
+      readText: (rect) => {
+        const s = sessionRef.current;
+        if (!s) return;
+        const current = () => sessionRef.current?.sessionId === s.sessionId;
+        api.readScreenText(s.sessionId, s.monitor.id, rect).then(
+          (lines) => current() && engine.setText(rect, lines),
+          (e) => current() && engine.setText(rect, null, errorText(e)),
+        );
+      },
+      copyText: (text) => {
+        api.copyText(text).then(
+          () => {
+            setCopied(true);
+            clearTimeout(copiedTimer.current);
+            copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
+          },
+          (e) => console.error(errorText(e)),
+        );
       },
       elementsAt: (p) => {
         wanted = p;
@@ -201,6 +223,9 @@ export function Overlay() {
     };
   }, [commit, cancel]);
 
+  const picked = view?.text?.picked ?? 0;
+  useEffect(() => setCopied(false), [picked, view?.sel]);
+
   const engine = engineRef.current;
   const r = view?.ratio ?? 1;
   const css = (v: number) => v / r;
@@ -214,6 +239,7 @@ export function Overlay() {
   const hint = (): string => {
     if (!view) return "";
     if (view.phase === "selected") return t("ov.hint.selected");
+    if (view.phase === "text") return t("ov.hint.pick");
     return t(`ov.hint.${view.mode}` as Key);
   };
 
@@ -318,7 +344,7 @@ export function Overlay() {
         </div>
       )}
 
-      {view?.sel && view.phase !== "idle" && view.phase !== "press" && (
+      {view?.sel && view.phase !== "idle" && view.phase !== "press" && view.phase !== "text" && (
         <SizeLabel
           sel={view.sel}
           ratio={r}
@@ -336,13 +362,39 @@ export function Overlay() {
       {view?.sel && view.phase === "selected" && (
         <div className="ov-actions" style={actionsPos(view.sel, r, view.width, view.height)}>
           <ActionButton icon={Pin} label={t("ov.act.pin")} onClick={() => commit(view.sel!, "pin")} />
-          <ActionButton icon={ScanText} label={t("ov.act.text")} onClick={() => commit(view.sel!, "text")} />
+          <ActionButton icon={ScanText} label={t("ov.act.text")} onClick={() => engine?.readText(view.sel!)} />
           <ActionButton icon={QrCode} label={t("ov.act.qr")} onClick={() => commit(view.sel!, "qr")} />
           <ActionButton icon={PenLine} label={t("ov.act.edit")} onClick={() => commit(view.sel!, "edit")} />
           <ActionButton icon={Download} label={t("ov.act.saveAs")} onClick={() => commit(view.sel!, "save_as")} />
           <ActionButton icon={Copy} label={t("ov.act.copy")} onClick={() => commit(view.sel!, "copy")} />
           <button className="ov-done" title={t("ov.act.done")} onClick={() => commit(view.sel!, "done")}>
             <Check size={18} strokeWidth={2.6} />
+          </button>
+        </div>
+      )}
+
+      {view?.sel && view.phase === "text" && view.text && (
+        <div className="ov-actions ov-textbar" style={textBarPos(view.sel, r, view.width, view.height)}>
+          {view.text.state === "ready" ? (
+            <>
+              <span className="ov-textbar-note">{picked ? t("ov.pick.picked", { n: picked }) : t("ov.pick.none")}</span>
+              {picked > 0 && (
+                <button className="ov-textbtn" onClick={() => engine?.copyText(true)}>
+                  {t("ov.pick.copyAll")}
+                </button>
+              )}
+              <button className="ov-textbtn primary" onClick={() => engine?.copyText()}>
+                {copied ? <Check size={16} strokeWidth={2.6} /> : <Copy size={16} />}
+                <span>{copied ? t("ov.pick.copied") : picked ? t("ov.pick.copy") : t("ov.pick.copyAll")}</span>
+              </button>
+            </>
+          ) : (
+            <span className="ov-textbar-note" role="status">
+              {view.text.state === "reading" ? t("ov.pick.reading") : view.text.state === "empty" ? t("ov.pick.empty") : t("ov.pick.failed", { error: view.text.error })}
+            </span>
+          )}
+          <button className="ov-act" title={t("ov.close")} aria-label={t("ov.close")} onClick={cancel}>
+            <X size={17} />
           </button>
         </div>
       )}
@@ -382,6 +434,17 @@ function actionsPos(sel: Rect, ratio: number, width: number, height: number): CS
   if (top < 8) top = (sel.y + sel.h) / ratio - barH - 10;
   const left = Math.min(Math.max(8, right - barW), width / ratio - barW - 8);
   return { left, top };
+}
+
+/** Under the area, right edges lined up; above it when there's no room below. */
+function textBarPos(sel: Rect, ratio: number, width: number, height: number): CSSProperties {
+  const barH = 44;
+  const roomRight = width / ratio - (sel.x + sel.w) / ratio;
+  let top = (sel.y + sel.h) / ratio + 12;
+  if (top + barH > height / ratio - 8) top = sel.y / ratio - barH - 12;
+  if (top < 8) top = (sel.y + sel.h) / ratio - barH - 10;
+  // A bar about this wide fits left of the area's right edge; otherwise keep it on screen from the left.
+  return (sel.x + sel.w) / ratio > 440 ? { right: Math.max(8, roomRight), top } : { left: 8, top };
 }
 
 function ActionButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {

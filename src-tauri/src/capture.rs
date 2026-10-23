@@ -16,6 +16,7 @@ use windows::Win32::Graphics::Gdi::{
 
 use crate::card::{self, Card};
 use crate::shots::{self, Source};
+use crate::smart::ocr;
 use crate::state::state;
 use crate::win::{self, MonitorInfo, Rect, WindowInfo};
 use crate::{clipboard, imaging, pins, wm};
@@ -245,6 +246,25 @@ pub fn cancel(app: &AppHandle, session_id: u64) {
     if state(app).capture.take(session_id).is_some() {
         end_overlays(app, session_id);
     }
+}
+
+/// The words in an area of the frozen screen, relative to the monitor. The
+/// capture stays open, so the overlay can let the user pick them in place.
+pub fn read_text(app: &AppHandle, session_id: u64, monitor_id: usize, rect: Rect) -> Result<Vec<ocr::Line>> {
+    let session = state(app).capture.current().filter(|s| s.id == session_id).ok_or_else(|| anyhow!("this capture has already ended"))?;
+    let frame = session.frames.iter().find(|f| f.monitor.id == monitor_id).ok_or_else(|| anyhow!("monitor {monitor_id} is gone"))?;
+    let m = &frame.monitor;
+    let rect = rect.intersect(&Rect::new(0, 0, m.rect.w, m.rect.h)).ok_or_else(|| anyhow!("the selection is empty"))?;
+    let img = imaging::crop(&frame.rgba, m.rect.w as u32, m.rect.h as u32, rect).ok_or_else(|| anyhow!("the selection is empty"))?;
+    crate::smart::init_thread();
+    let best = ocr::read(&img)?.into_iter().next().unwrap_or_default();
+    Ok(best
+        .lines
+        .into_iter()
+        .map(|line| ocr::Line {
+            words: line.words.into_iter().map(|w| ocr::Word { rect: w.rect.offset(rect.x, rect.y), ..w }).collect(),
+        })
+        .collect())
 }
 
 /// Tells the overlays to clear and hide. They hide themselves once the

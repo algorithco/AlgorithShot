@@ -174,6 +174,16 @@ pub async fn element_at(app: AppHandle, session_id: u64, monitor_id: usize, x: i
         .collect()
 }
 
+/// The words in part of the frozen screen, so the overlay can let the user
+/// pick them right there. The capture stays open.
+#[tauri::command]
+pub async fn capture_read_text(app: AppHandle, session_id: u64, monitor_id: usize, rect: crate::win::Rect) -> CmdResult<Vec<crate::smart::ocr::Line>> {
+    tauri::async_runtime::spawn_blocking(move || capture::read_text(&app, session_id, monitor_id, rect))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(anyhow_err)
+}
+
 #[tauri::command]
 pub fn copy_color(app: AppHandle, hex: String) -> CmdResult<()> {
     clipboard::set_text(&hex).map_err(anyhow_err)?;
