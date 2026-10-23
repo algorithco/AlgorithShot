@@ -178,6 +178,7 @@ pub fn read(img: &RgbaImage) -> Result<Vec<OcrText>> {
         return Err(anyhow!("text recognition failed"));
     }
     results.sort_by_key(|r| std::cmp::Reverse(r.score()));
+    log::debug!("OCR: best engine {} (score {})", results[0].lang, results[0].score());
     Ok(results)
 }
 

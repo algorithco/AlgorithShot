@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Copy,
   Crop,
+  Download,
   Eraser,
   EyeOff,
   Hash,
@@ -157,8 +158,11 @@ export function Editor() {
   // Re-run the raster ops whenever they change (marks don't need this).
   useEffect(() => {
     if (!doc || !renderer.current) return;
-    base.current = renderer.current.render(doc.ops);
-    setVersion((v) => v + 1);
+    const next = renderer.current.render(doc.ops);
+    if (next !== base.current) {
+      base.current = next;
+      setVersion((v) => v + 1);
+    }
   }, [doc?.ops]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fit = useCallback((w: number, h: number) => {
@@ -439,11 +443,11 @@ export function Editor() {
           </button>
         </div>
         <span className="ed-sep" />
-        <button className="btn" onClick={copy}>
-          <Copy size={15} /> {t("ed.copy")}
+        <button className="icon-btn" title={t("ed.copy")} aria-label={t("ed.copy")} onClick={copy}>
+          <Copy size={17} />
         </button>
-        <button className="btn" onClick={saveAs}>
-          {t("ed.saveAs")}
+        <button className="icon-btn" title={t("ed.saveAs")} aria-label={t("ed.saveAs")} onClick={saveAs}>
+          <Download size={17} />
         </button>
         <button className="btn btn-primary" onClick={save} disabled={!!busy}>
           {t("ed.save")}

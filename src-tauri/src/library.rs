@@ -280,16 +280,6 @@ impl Library {
         Ok(())
     }
 
-    pub fn set_url(&self, id: &str, url: &str) -> Result<()> {
-        let conn = self.conn.lock();
-        conn.execute("UPDATE shots SET url = ?2 WHERE id = ?1", params![id, url])?;
-        conn.execute(
-            "UPDATE shots_fts SET url = ?2 WHERE rowid = (SELECT rowid FROM shots WHERE id = ?1)",
-            params![id, search_text(url)],
-        )?;
-        Ok(())
-    }
-
     pub fn set_favorite(&self, id: &str, favorite: bool) -> Result<()> {
         self.conn
             .lock()

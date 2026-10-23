@@ -1,4 +1,4 @@
-//! Pure image operations: crop, encode, resize, fit, cut strip and smart fill.
+//! Pure image operations: crop, encode, resize, fit and smart fill.
 //! Everything works on straight (not premultiplied) RGBA8 buffers.
 
 use anyhow::{anyhow, bail, Result};
@@ -193,34 +193,6 @@ pub fn thumbnail(img: &RgbaImage, max: u32) -> Result<RgbaImage> {
     }
     let scale = (max as f64 / w as f64).min(max as f64 / h as f64);
     resize(img, ((w as f64 * scale) as u32).max(1), ((h as f64 * scale) as u32).max(1))
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Axis {
-    /// Removes a band of rows: the image gets shorter.
-    Horizontal,
-    /// Removes a band of columns: the image gets narrower.
-    Vertical,
-}
-
-/// Removes the band `[from, to)` and joins the two remaining parts.
-pub fn cut_strip(img: &RgbaImage, axis: Axis, from: u32, to: u32) -> Result<RgbaImage> {
-    let (w, h) = img.dimensions();
-    let limit = if axis == Axis::Horizontal { h } else { w };
-    let (from, to) = (from.min(to).min(limit), from.max(to).min(limit));
-    if to - from >= limit {
-        bail!("the strip covers the whole image");
-    }
-    let cut = to - from;
-    Ok(match axis {
-        Axis::Horizontal => RgbaImage::from_fn(w, h - cut, |x, y| {
-            *img.get_pixel(x, if y < from { y } else { y + cut })
-        }),
-        Axis::Vertical => RgbaImage::from_fn(w - cut, h, |x, y| {
-            *img.get_pixel(if x < from { x } else { x + cut }, y)
-        }),
-    })
 }
 
 /// Fills `r` from the pixels around it and returns the patch (r.w × r.h).
@@ -423,19 +395,6 @@ mod tests {
         // Image is scaled to 200x67 and centred; the top band stays background.
         assert_eq!(*fitted.get_pixel(100, 10), Rgba([255, 255, 255, 255]));
         assert_eq!(thumbnail(&img, 120).unwrap().dimensions(), (120, 40));
-    }
-
-    #[test]
-    fn cut_strip_joins_parts() {
-        let img = checker(50, 40);
-        let cut = cut_strip(&img, Axis::Horizontal, 10, 25).unwrap();
-        assert_eq!(cut.dimensions(), (50, 25));
-        assert_eq!(cut.get_pixel(3, 9), img.get_pixel(3, 9));
-        assert_eq!(cut.get_pixel(3, 10), img.get_pixel(3, 25));
-        let cut = cut_strip(&img, Axis::Vertical, 30, 20).unwrap();
-        assert_eq!(cut.dimensions(), (40, 40));
-        assert_eq!(cut.get_pixel(20, 5), img.get_pixel(30, 5));
-        assert!(cut_strip(&img, Axis::Vertical, 0, 50).is_err());
     }
 
     #[test]

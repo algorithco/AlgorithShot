@@ -2,7 +2,7 @@
 // faces in the current image and hides the ones you tick, in one step.
 
 import { ShieldAlert, ShieldCheck } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { editorApi, errorText, type Finding, type Rect } from "../shared/api";
 import { useT, type Key } from "../shared/i18n";
 import { Segmented, toast } from "../shared/ui";
@@ -22,32 +22,37 @@ export function PrivacyPanel({
   onHide: (rects: Rect[], style: HideStyle) => void;
 }) {
   const t = useT();
-  const [findings, setFindings] = useState<Finding[] | null>(null);
+  // Results belong to the image version they were found in; an edit makes
+  // them stale.
+  const [result, setResult] = useState<{ version: number; findings: Finding[] } | null>(null);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [scanning, setScanning] = useState(false);
   const [style, setStyle] = useState<HideStyle>("pixelate");
+  const autoScanned = useRef(false);
+  const findings = result && result.version === version ? result.findings : null;
 
   const scan = useCallback(async () => {
     if (!base) return;
+    const at = version;
     setScanning(true);
     try {
       const found = await editorApi.privacyScan(rgbaOf(base), base.width, base.height);
-      setFindings(found);
+      setResult({ version: at, findings: found });
       setPicked(new Set(found.map((_, i) => i)));
     } catch (e) {
       toast({ text: t("common.error", { msg: errorText(e) }), error: true });
     } finally {
       setScanning(false);
     }
-  }, [base, t]);
+  }, [base, version, t]);
 
-  // Opened from "N private items found": look straight away.
+  // Opened from "N private items found": look straight away, once.
   useEffect(() => {
-    if (open && base && findings === null && !scanning) scan();
-  }, [open, base]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // An edit changes the image, so old results may no longer match.
-  useEffect(() => setFindings(null), [version]);
+    if (open && base && !autoScanned.current) {
+      autoScanned.current = true;
+      scan();
+    }
+  }, [open, base, scan]);
 
   return (
     <Section title={t("ed.privacy")}>
@@ -100,7 +105,7 @@ export function PrivacyPanel({
                 findings.filter((_, i) => picked.has(i)).map((f) => pad(f.rect, base)),
                 style,
               );
-              setFindings(null);
+              setResult(null);
             }}
           >
             {t("ed.hideSelected")}

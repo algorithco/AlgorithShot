@@ -19,7 +19,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { api, errorText, imageUrl, thumbUrl, type Shot, type ShotDetail } from "../shared/api";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { api, editorApi, errorText, imageUrl, thumbUrl, type Shot, type ShotDetail } from "../shared/api";
 import { dayKey, formatBytes, formatDate, formatDateTime, prettyKey } from "../shared/format";
 import { useLang, useT } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
@@ -57,6 +58,28 @@ export function LibraryPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Any picture can be edited: paste one, or drop image files on the window.
+  useEffect(() => {
+    const onPaste = async (e: ClipboardEvent) => {
+      if ((e.target as HTMLElement).matches?.("input, textarea")) return;
+      const file = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith("image/"))?.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      editorApi.openBytes(new Uint8Array(await file.arrayBuffer())).catch((err) => toast({ text: t("common.error", { msg: errorText(err) }), error: true }));
+    };
+    window.addEventListener("paste", onPaste);
+    const drop = getCurrentWebview().onDragDropEvent((e) => {
+      if (e.payload.type !== "drop") return;
+      for (const path of e.payload.paths.filter((p) => /\.(png|jpe?g|webp|bmp|gif)$/i.test(p)).slice(0, 5)) {
+        editorApi.openFile(path).catch((err) => toast({ text: t("common.error", { msg: errorText(err) }), error: true }));
+      }
+    });
+    return () => {
+      window.removeEventListener("paste", onPaste);
+      drop.then((un) => un()).catch(() => {});
+    };
+  }, [t]);
 
   // Search as you type, a moment after the last key.
   useEffect(() => {
@@ -420,7 +443,7 @@ function Tile({
       title={shot.title || shot.name}
     >
       <div className={`tile-thumb checker${selected ? " brackets" : ""}`} style={{ height: thumbH }}>
-        {broken ? <ImageOff size={26} strokeWidth={1.5} /> : <img src={thumbUrl(shot)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} />}
+        {broken ? <ImageOff size={26} strokeWidth={1.5} className="tile-broken" /> : <img src={thumbUrl(shot)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} />}
         {shot.favorite && <Star size={15} className="tile-star" fill="currentColor" />}
         {shot.privacy > 0 && (
           <span className="tile-badge" title={t("lib.privacyFound", { n: shot.privacy })}>

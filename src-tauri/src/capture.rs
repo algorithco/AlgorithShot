@@ -434,3 +434,23 @@ pub fn monitor_at(app: &AppHandle, x: i32, y: i32) -> Option<tauri::Monitor> {
             x >= p.x && y >= p.y && x < p.x + s.width as i32 && y < p.y + s.height as i32
         })
 }
+
+#[cfg(test)]
+mod tests {
+    /// Reads the real screen into memory (nothing is saved or shown).
+    #[test]
+    fn grabs_the_main_monitor_at_full_resolution() {
+        let monitors = crate::win::monitors();
+        let m = &monitors[0];
+        let started = std::time::Instant::now();
+        let rgba = super::grab(m.rect).unwrap();
+        let took = started.elapsed();
+        assert_eq!(rgba.len(), (m.rect.w * m.rect.h * 4) as usize);
+        assert!(rgba.chunks_exact(4).all(|p| p[3] == 255));
+        let first = &rgba[0..4];
+        assert!(rgba.chunks_exact(4).any(|p| p != first), "frame is blank");
+        let windows = crate::win::visible_windows();
+        assert!(!windows.is_empty());
+        println!("grabbed {}x{} at {:.0}% in {:?}; {} windows", m.rect.w, m.rect.h, m.scale * 100.0, took, windows.len());
+    }
+}

@@ -59,3 +59,7 @@ tauri-plugin-single-instance = "2"
 
 [dev-dependencies]
 qrcode = { version = "0.14.1", default-features = false, features = ["image"] }
+
+# Image work in dependencies is slow unoptimized; keep debug builds usable.
+[profile.dev.package."*"]
+opt-level = 2
