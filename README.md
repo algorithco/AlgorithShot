@@ -68,3 +68,7 @@ src/
   pin/         pinned screenshots
   shared/      API types, translations (en, uz, ru), styles, UI pieces
 ```
+
+## License
+
+Not open source: all rights reserved. See [LICENSE](LICENSE).
