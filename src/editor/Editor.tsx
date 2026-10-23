@@ -527,7 +527,7 @@ export function Editor() {
       </div>
 
       <footer className="ed-status edge">
-        <span>{info.name}</span>
+        <span className="ed-name">{info.name}</span>
         <span className="measure">
           {doc.width} × {doc.height}
         </span>

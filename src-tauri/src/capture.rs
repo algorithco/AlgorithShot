@@ -122,7 +122,6 @@ struct OverlayStart {
     windows: Vec<WindowInfo>,
     cursor: Option<(i32, i32)>,
     last: Option<Rect>,
-    magnifier: bool,
     snap: bool,
     elements: bool,
 }
@@ -203,7 +202,6 @@ fn begin(app: &AppHandle, mode: &str) -> Result<()> {
             windows,
             cursor: m.rect.contains(cx, cy).then(|| (cx - m.rect.x, cy - m.rect.y)),
             last: last.as_ref().filter(|l| l.monitor_name == m.name).map(|l| l.rect),
-            magnifier: settings.magnifier,
             snap: settings.snap,
             elements: settings.elements,
         };
@@ -398,7 +396,7 @@ fn show_result(app: &AppHandle, img: RgbaImage, src: &Source, copied: bool) -> R
     Ok(())
 }
 
-fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
+pub fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
     use tauri_plugin_dialog::DialogExt;
     let name = format!("Screenshot {}.png", chrono::Local::now().format("%Y-%m-%d %H-%M-%S"));
     let picked = app

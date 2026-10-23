@@ -34,7 +34,6 @@ type Start = {
   windows: WindowInfo[];
   cursor: [number, number] | null;
   last: Rect | null;
-  magnifier: boolean;
   snap: boolean;
   elements: boolean;
 };
@@ -152,7 +151,6 @@ export function Overlay() {
           windows: s.windows,
           mode: s.mode,
           cursor: s.cursor,
-          magnifier: s.magnifier,
           snap: s.snap,
         });
         requestAnimationFrame(() => api.overlayReady(s.sessionId, s.monitor.id));

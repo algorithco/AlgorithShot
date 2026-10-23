@@ -72,7 +72,6 @@ pub struct Settings {
     pub show_card: bool,
     pub open_editor: bool,
     pub card_seconds: u32,
-    pub magnifier: bool,
     pub snap: bool,
     /// Snap to buttons, panels and messages inside windows (UI Automation).
     pub elements: bool,
@@ -103,7 +102,6 @@ impl Default for Settings {
             show_card: true,
             open_editor: false,
             card_seconds: 6,
-            magnifier: true,
             snap: true,
             elements: true,
             hotkeys: Hotkeys::default(),

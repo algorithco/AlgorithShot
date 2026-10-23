@@ -163,6 +163,7 @@ pub fn run() {
             commands::show_library,
             commands::cleanup_scan,
             commands::share_telegram,
+            commands::save_as_image,
             editor::editor_info,
             editor::editor_fill,
             editor::editor_resize,

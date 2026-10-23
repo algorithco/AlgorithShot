@@ -400,6 +400,16 @@
   overflow: hidden;
 }
 
+/* File names keep their own case; the rest of the bar is a label. */
+.ed-name {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ed-busy {
   color: var(--tally-text);
 }

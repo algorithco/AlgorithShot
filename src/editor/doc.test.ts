@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commit, markAt, moveMarks, movePoint, newHistory, nextStep, redo, sizeAfter, undo, withOp, type Mark, type Op } from "./doc";
+import { commit, handleOfMark, markAt, moveMarks, movePoint, newHistory, nextStep, redo, reshapeMark, sizeAfter, undo, withOp, type Mark, type Op } from "./doc";
 
 const bmp = (w: number, h: number) => ({ width: w, height: h }) as ImageBitmap;
 
@@ -57,5 +57,23 @@ describe("editor document", () => {
     expect(markAt(marks, { x: 11, y: 30 }, 4)?.id).toBe("b"); // on the box edge
     expect(markAt(marks, { x: 60, y: 35 }, 4)).toBeNull(); // inside an outline box
     expect(markAt(marks, { x: 210, y: 205 }, 2)?.id).toBe("s");
+  });
+});
+
+describe("editing marks", () => {
+  const box: Mark = { id: "b", kind: "box", rect: { x: 10, y: 10, w: 100, h: 50 }, color: "#000", width: 4 };
+  const arrow: Mark = { id: "a", kind: "arrow", a: { x: 0, y: 0 }, b: { x: 50, y: 50 }, color: "#000", width: 4 };
+
+  it("finds the handle under the pointer", () => {
+    expect(handleOfMark(box, { x: 111, y: 61 }, 5)).toBe("se");
+    expect(handleOfMark(box, { x: 60, y: 9 }, 5)).toBe("n");
+    expect(handleOfMark(box, { x: 60, y: 35 }, 5)).toBeNull();
+    expect(handleOfMark(arrow, { x: 49, y: 51 }, 5)).toBe("b");
+  });
+
+  it("resizes boxes from any handle, flipping past the opposite side", () => {
+    expect(reshapeMark(box, "se", { x: 210, y: 90 })).toMatchObject({ rect: { x: 10, y: 10, w: 200, h: 80 } });
+    expect(reshapeMark(box, "w", { x: 150, y: 0 })).toMatchObject({ rect: { x: 110, y: 10, w: 40, h: 50 } });
+    expect(reshapeMark(arrow, "a", { x: 5, y: 7 })).toMatchObject({ a: { x: 5, y: 7 }, b: { x: 50, y: 50 } });
   });
 });

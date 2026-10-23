@@ -5,7 +5,7 @@
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, Copy, ExternalLink, FolderOpen, Pin, Save, Send, ShieldAlert, Trash2, PenLine, X } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, FolderOpen, Pin, Save, Send, ShieldAlert, Trash2, PenLine, X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, errorText, shotUrl, thumbUrl, type CardPayload, type Shot } from "../shared/api";
 import { formatBytes } from "../shared/format";
@@ -117,7 +117,19 @@ export function Card() {
         <button className="card-close" aria-label={t("common.close")} onClick={hideNow}>
           <X size={15} />
         </button>
-        {card.kind === "shot" && <ShotCard card={card} shot={shot} note={note} act={act} hide={hideNow} />}
+        {card.kind === "shot" && (
+          <ShotCard
+            card={card}
+            shot={shot}
+            note={note}
+            act={act}
+            hide={hideNow}
+            hold={(on) => {
+              hovering.current = on;
+              if (!on) arm(4000);
+            }}
+          />
+        )}
         {card.kind === "text" && (
           <>
             <div className="card-title">
@@ -191,12 +203,15 @@ function ShotCard({
   note,
   act,
   hide,
+  hold,
 }: {
   card: Extract<CardPayload, { kind: "shot" }>;
   shot: Shot | null;
   note: string | null;
   act: (fn: () => Promise<unknown>, after?: string) => void;
   hide: () => void;
+  /** Keeps the card up while a dialog it opened is showing. */
+  hold: (on: boolean) => void;
 }) {
   const t = useT();
   const temp = card.tempId;
@@ -279,6 +294,17 @@ function ShotCard({
           onClick={() => act(() => (shot ? api.copy([shot.id]) : api.tempCopy(temp!)), t("common.copied"))}
         >
           <Copy size={16} />
+        </button>
+        <button
+          className="icon-btn"
+          title={t("card.saveAs")}
+          onClick={() => {
+            // Rust shows the "Saved" card itself, or nothing if the dialog is cancelled.
+            hold(true);
+            api.saveAsImage(shot?.id ?? null, shot ? null : temp).catch(() => {}).finally(() => hold(false));
+          }}
+        >
+          <Download size={16} />
         </button>
         {shot ? (
           <button className="icon-btn" title={t("card.folder")} onClick={() => act(() => api.reveal(shot.id))}>

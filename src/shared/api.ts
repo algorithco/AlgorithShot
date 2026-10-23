@@ -44,7 +44,6 @@ export type Settings = {
   showCard: boolean;
   openEditor: boolean;
   cardSeconds: number;
-  magnifier: boolean;
   snap: boolean;
   elements: boolean;
   hotkeys: Hotkeys;
@@ -175,6 +174,7 @@ export const api = {
   showLibrary: (page?: string) => invoke<void>("show_library", { page }),
   cleanupScan: () => invoke<Cleanup>("cleanup_scan"),
   shareTelegram: (id: string | null, tempId: string | null = null) => invoke<boolean>("share_telegram", { id, tempId }),
+  saveAsImage: (id: string | null, tempId: string | null = null) => invoke<void>("save_as_image", { id, tempId }),
 };
 
 export type EditorInfo = {

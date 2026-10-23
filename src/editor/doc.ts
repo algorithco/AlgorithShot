@@ -174,6 +174,53 @@ export function shiftMark(m: Mark, dx: number, dy: number): Mark {
   }
 }
 
+/** Grab points of a mark: box corners and sides, arrow ends. */
+export function markHandles(m: Mark): { id: string; at: Pt }[] {
+  if (m.kind === "arrow") {
+    return [
+      { id: "a", at: m.a },
+      { id: "b", at: m.b },
+    ];
+  }
+  if (m.kind === "box" || m.kind === "highlight") {
+    const { x, y, w, h } = m.rect;
+    return [
+      { id: "nw", at: { x, y } },
+      { id: "n", at: { x: x + w / 2, y } },
+      { id: "ne", at: { x: x + w, y } },
+      { id: "e", at: { x: x + w, y: y + h / 2 } },
+      { id: "se", at: { x: x + w, y: y + h } },
+      { id: "s", at: { x: x + w / 2, y: y + h } },
+      { id: "sw", at: { x, y: y + h } },
+      { id: "w", at: { x, y: y + h / 2 } },
+    ];
+  }
+  return [];
+}
+
+/** The handle of `m` within `radius` of `p`, if any. */
+export function handleOfMark(m: Mark, p: Pt, radius: number): string | null {
+  const hit = markHandles(m).find((h) => Math.hypot(h.at.x - p.x, h.at.y - p.y) <= radius);
+  return hit?.id ?? null;
+}
+
+/** The mark with one handle dragged to `p`. */
+export function reshapeMark(m: Mark, handle: string, p: Pt): Mark {
+  if (m.kind === "arrow") return handle === "a" ? { ...m, a: p } : { ...m, b: p };
+  if (m.kind === "box" || m.kind === "highlight") {
+    let x0 = m.rect.x;
+    let y0 = m.rect.y;
+    let x1 = m.rect.x + m.rect.w;
+    let y1 = m.rect.y + m.rect.h;
+    if (handle.includes("w")) x0 = p.x;
+    if (handle.includes("e")) x1 = p.x;
+    if (handle.includes("n")) y0 = p.y;
+    if (handle.includes("s")) y1 = p.y;
+    return { ...m, rect: { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) } };
+  }
+  return m;
+}
+
 /** Preset output sizes for "perfect size". */
 export const SIZE_PRESETS: { label: string; w: number; h: number }[] = [
   { label: "Full HD", w: 1920, h: 1080 },

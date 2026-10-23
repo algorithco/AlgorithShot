@@ -13,7 +13,7 @@ import {
 } from "react";
 import type { Rect } from "../shared/api";
 import { contains, fromPoints, handleAt, intersect, keepInside, resize, type Handle, type Pt } from "../shared/geometry";
-import { markAt, markId, nextStep, shiftMark, type Axis, type Doc, type HideStyle, type Mark, type Op } from "./doc";
+import { handleOfMark, markAt, markHandles, markId, nextStep, reshapeMark, shiftMark, type Axis, type Doc, type HideStyle, type Mark, type Op } from "./doc";
 import { drawMark, drawMarks, markBounds, MARK_FONT } from "./render";
 
 export type Tool = "select" | "crop" | "erase" | "fill" | "cut" | "hide" | "arrow" | "box" | "highlight" | "text" | "step";
@@ -41,6 +41,7 @@ type Drag =
   | { kind: "stroke"; points: Pt[] }
   | { kind: "band"; start: Pt; now: Pt }
   | { kind: "move"; id: string; start: Pt; now: Pt }
+  | { kind: "reshape"; id: string; handle: string; orig: Mark; start: Pt; now: Pt }
   | { kind: "crop"; mode: Handle | "move" | "new"; start: Pt; orig: Rect };
 
 type TextEdit = { at: Pt; value: string; id?: string };
@@ -67,6 +68,9 @@ type Props = {
 
 const TALLY = "#ffb400";
 
+/** Tools where clicking a mark grabs it instead of drawing a new one. */
+const EDITS_MARKS = new Set<Tool>(["select", "arrow", "box", "highlight", "text", "step"]);
+
 export function Stage(p: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -74,7 +78,15 @@ export function Stage(p: Props) {
   const cursor = useRef<Pt | null>(null);
   const space = useRef(false);
   const frame = useRef(0);
-  const [text, setText] = useState<TextEdit | null>(null);
+  const [text, showText] = useState<TextEdit | null>(null);
+  // The text being typed, read by commitText: a blur and a click can both
+  // commit, and only the first one should.
+  const liveText = useRef<TextEdit | null>(null);
+  const setText = (t: TextEdit | null) => {
+    liveText.current = t;
+    showText(t);
+  };
+  const textRef = useRef<HTMLTextAreaElement>(null);
   const [cursorStyle, setCursorStyle] = useState("default");
   const props = useRef(p);
   props.current = p;
@@ -141,6 +153,14 @@ export function Stage(p: Props) {
     setText(null);
   }, [p.tool]);
 
+  const textOpen = !!text;
+  useEffect(() => {
+    if (!textOpen) return;
+    const el = textRef.current;
+    el?.focus();
+    el?.setSelectionRange(el.value.length, el.value.length);
+  }, [textOpen, text?.id]);
+
   // ---- drawing ----
 
   function draw() {
@@ -169,24 +189,45 @@ export function Stage(p: Props) {
     if (base) ctx.drawImage(base, 0, 0);
 
     const d = drag.current;
-    const marks = d?.kind === "move" ? doc.marks.map((m) => (m.id === d.id ? shiftMark(m, d.now.x - d.start.x, d.now.y - d.start.y) : m)) : doc.marks;
+    const marks =
+      d?.kind === "move"
+        ? doc.marks.map((m) => (m.id === d.id ? shiftMark(m, d.now.x - d.start.x, d.now.y - d.start.y) : m))
+        : d?.kind === "reshape"
+          ? doc.marks.map((m) => (m.id === d.id ? reshapeMark(d.orig, d.handle, d.now) : m))
+          : doc.marks;
     drawMarks(ctx, marks, text?.id);
     if (d) drawPreview(ctx, d, opts, doc);
     ctx.restore();
 
     // Screen-space overlays.
     if (tool === "crop" && crop) drawCrop(ctx, crop, view, c.width / dpr, c.height / dpr);
-    if (selected && tool === "select") {
-      const m = marks.find((x) => x.id === selected);
-      if (m) {
-        const b = markBounds(m, ctx);
-        ctx.save();
+    // The selected mark: a dashed outline, and handles to resize it.
+    const sel = selected && EDITS_MARKS.has(tool) ? marks.find((x) => x.id === selected) : undefined;
+    if (sel && sel.id !== text?.id) {
+      const handles = markHandles(sel);
+      ctx.save();
+      if (sel.kind !== "arrow") {
+        const b = markBounds(sel, ctx);
+        const pad = handles.length ? 0 : 5;
         ctx.strokeStyle = TALLY;
         ctx.lineWidth = 1.5;
         ctx.setLineDash([5, 4]);
-        ctx.strokeRect(view.x + b.x * view.zoom - 5, view.y + b.y * view.zoom - 5, b.w * view.zoom + 10, b.h * view.zoom + 10);
-        ctx.restore();
+        ctx.strokeRect(view.x + b.x * view.zoom - pad, view.y + b.y * view.zoom - pad, b.w * view.zoom + pad * 2, b.h * view.zoom + pad * 2);
+        ctx.setLineDash([]);
       }
+      for (const h of handles) {
+        const hx = view.x + h.at.x * view.zoom;
+        const hy = view.y + h.at.y * view.zoom;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = TALLY;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        if (sel.kind === "arrow") ctx.arc(hx, hy, 6, 0, Math.PI * 2);
+        else ctx.rect(hx - 5, hy - 5, 10, 10);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     const cur = cursor.current;
     if (cur && tool === "erase" && opts.eraseMode === "brush" && !space.current) {
@@ -207,10 +248,12 @@ export function Stage(p: Props) {
   // ---- input ----
 
   function onPointerDown(e: RPointerEvent<HTMLCanvasElement>) {
+    // Keeps focus where it is: a text box that's about to open stays focused.
+    e.preventDefault();
     if (text) commitText();
     canvasRef.current!.setPointerCapture(e.pointerId);
     const pt = toImage(e);
-    const { tool, doc, view, opts, crop } = props.current;
+    const { tool, doc, view, opts, crop, selected } = props.current;
     if (e.button === 1 || space.current) {
       drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
       setCursorStyle("grabbing");
@@ -218,14 +261,29 @@ export function Stage(p: Props) {
     }
     if (e.button !== 0) return;
     const slack = 6 / view.zoom;
-    switch (tool) {
-      case "select": {
-        const m = markAt(doc.marks, pt, slack);
-        props.current.onSelect(m?.id ?? null);
-        drag.current = m ? { kind: "move", id: m.id, start: pt, now: pt } : { kind: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
-        if (!m) setCursorStyle("grabbing");
-        break;
+    if (EDITS_MARKS.has(tool)) {
+      const current = doc.marks.find((m) => m.id === selected);
+      const handle = current && handleOfMark(current, pt, 9 / view.zoom);
+      if (current && handle) {
+        drag.current = { kind: "reshape", id: current.id, handle, orig: current, start: pt, now: pt };
+        return;
       }
+      const hit = markAt(doc.marks, pt, slack);
+      if (hit) {
+        props.current.onSelect(hit.id);
+        if (tool === "text" && hit.kind === "text") setText({ at: hit.at, value: hit.text, id: hit.id });
+        else drag.current = { kind: "move", id: hit.id, start: pt, now: pt };
+        requestDraw();
+        return;
+      }
+      props.current.onSelect(null);
+    }
+    switch (tool) {
+      case "select":
+        // Nothing under the pointer: drag pans the picture.
+        drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
+        setCursorStyle("grabbing");
+        break;
       case "crop": {
         const r = crop ?? bounds();
         const h = handleAt(r, pt, 9 / view.zoom);
@@ -252,7 +310,7 @@ export function Stage(p: Props) {
         break;
       case "step": {
         const id = markId();
-        props.current.onMarks([...doc.marks, { id, kind: "step", at: pt, n: nextStep(doc.marks), color: opts.color, size: opts.stepSize }]);
+        props.current.onMarks([...doc.marks, { id, kind: "step", at: pt, n: nextStep(doc.marks), color: opts.color, size: opts.stepSize }], id);
         break;
       }
     }
@@ -279,6 +337,7 @@ export function Stage(p: Props) {
       case "line":
       case "band":
       case "move":
+      case "reshape":
         d.now = pt;
         break;
       case "stroke":
@@ -310,7 +369,10 @@ export function Stage(p: Props) {
           const id = markId();
           props.current.onMarks([...doc.marks, { id, kind: "box", rect: r, color: opts.color, width: opts.width }], id);
         }
-        if (d.tool === "highlight") props.current.onMarks([...doc.marks, { id: markId(), kind: "highlight", rect: r, color: opts.highlight }]);
+        if (d.tool === "highlight") {
+          const id = markId();
+          props.current.onMarks([...doc.marks, { id, kind: "highlight", rect: r, color: opts.highlight }], id);
+        }
         break;
       }
       case "line":
@@ -334,6 +396,10 @@ export function Stage(p: Props) {
         const dx = d.now.x - d.start.x;
         const dy = d.now.y - d.start.y;
         if (Math.abs(dx) + Math.abs(dy) > 0.5) props.current.onMarks(doc.marks.map((m) => (m.id === d.id ? shiftMark(m, dx, dy) : m)), d.id);
+        break;
+      }
+      case "reshape": {
+        if (Math.abs(d.now.x - d.start.x) + Math.abs(d.now.y - d.start.y) > 0.5) props.current.onMarks(doc.marks.map((m) => (m.id === d.id ? reshapeMark(d.orig, d.handle, d.now) : m)), d.id);
         break;
       }
       case "crop":
@@ -368,7 +434,13 @@ export function Stage(p: Props) {
     const { tool, doc, view, crop } = props.current;
     if (space.current) return;
     let style = baseCursor(tool);
-    if (tool === "select") style = markAt(doc.marks, pt, 6 / view.zoom) ? "move" : "default";
+    if (EDITS_MARKS.has(tool)) {
+      const current = doc.marks.find((m) => m.id === props.current.selected);
+      const handle = current && handleOfMark(current, pt, 9 / view.zoom);
+      const hit = !handle && markAt(doc.marks, pt, 6 / view.zoom);
+      if (handle) style = handle in HANDLE_CURSOR ? HANDLE_CURSOR[handle as Handle] : "grab";
+      else if (hit) style = tool === "text" && hit.kind === "text" ? "text" : "move";
+    }
     if (tool === "crop" && crop) {
       const h = handleAt(crop, pt, 9 / view.zoom);
       style = h ? HANDLE_CURSOR[h] : contains(crop, pt) ? "move" : "crosshair";
@@ -402,7 +474,7 @@ export function Stage(p: Props) {
   }
 
   function commitText() {
-    const t = text;
+    const t = liveText.current;
     setText(null);
     if (!t) return;
     const { doc, opts } = props.current;
@@ -436,10 +508,12 @@ export function Stage(p: Props) {
         }}
         onWheel={onWheel}
         onDoubleClick={onDoubleClick}
+        onMouseDown={(e) => e.preventDefault()}
         onContextMenu={(e) => e.preventDefault()}
       />
       {text && (
         <textarea
+          ref={textRef}
           className="stage-text"
           autoFocus
           spellCheck={false}

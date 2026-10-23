@@ -71,13 +71,7 @@ pub fn hotkey_status(app: AppHandle) -> Vec<HotkeyStatus> {
 /// pressing the current key doesn't start a capture.
 #[tauri::command]
 pub fn hotkeys_suspend(app: AppHandle, suspend: bool) -> Vec<HotkeyStatus> {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    if suspend {
-        let _ = app.global_shortcut().unregister_all();
-        Vec::new()
-    } else {
-        hotkeys::register_all(&app)
-    }
+    hotkeys::set_recording(&app, suspend)
 }
 
 #[derive(Serialize)]
@@ -101,7 +95,7 @@ pub fn app_info(app: AppHandle) -> AppInfo {
         save_dir_synced: crate::state::is_cloud_synced(&save_dir),
         save_dir: save_dir.to_string_lossy().into_owned(),
         default_save_dir: st.paths.default_save_dir.to_string_lossy().into_owned(),
-        print_screen_taken: hotkeys::print_screen_taken_by_windows(),
+        print_screen_taken: hotkeys::print_screen_blocked(&app),
         language: st.settings().resolved_language(),
     }
 }
@@ -395,6 +389,20 @@ pub async fn cleanup_scan(app: AppHandle) -> CmdResult<Cleanup> {
         old: lib.older_than(cutoff).map_err(anyhow_err)?,
         large: lib.larger_than(3 * 1024 * 1024).map_err(anyhow_err)?,
     })
+}
+
+/// "Save as…" from the quick card: asks where, then writes the file.
+#[tauri::command]
+pub async fn save_as_image(app: AppHandle, id: Option<String>, temp_id: Option<String>) -> CmdResult<()> {
+    let img = match (id, temp_id) {
+        (Some(id), _) => shots::load_rgba(&shot_path(&app, &id)?).map_err(anyhow_err)?,
+        (None, Some(t)) => (*state(&app).image(&t).ok_or("this capture is no longer available")?).clone(),
+        _ => return Err("nothing to save".into()),
+    };
+    tauri::async_runtime::spawn_blocking(move || capture::save_as(&app, &img))
+        .await
+        .map_err(err)?
+        .map_err(anyhow_err)
 }
 
 /// Copies the image and brings Telegram forward so the user can paste it.

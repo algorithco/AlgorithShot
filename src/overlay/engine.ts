@@ -1,5 +1,6 @@
 // The capture overlay's canvas: draws the frozen screen, the dimming, the
-// selection with its viewfinder corners, the magnifier and the ruler, and
+// selection with its viewfinder corners, the colour picker's magnifier and
+// the ruler, and
 // turns mouse and keyboard input into a selection. Everything is in
 // physical pixels; `ratio` converts from CSS pixels.
 
@@ -56,7 +57,6 @@ export type LoadArgs = {
   windows: WindowInfo[];
   mode: Mode;
   cursor: [number, number] | null;
-  magnifier: boolean;
   snap: boolean;
 };
 
@@ -81,7 +81,6 @@ export class Engine {
   phase: Phase = "idle";
   sel: Rect | null = null;
   fixed = { w: 1280, h: 720 };
-  magnifier = true;
   snapOn = true;
 
   private ctx: CanvasRenderingContext2D;
@@ -125,7 +124,6 @@ export class Engine {
     this.canvas.height = a.height;
     this.ratio = a.width / Math.max(1, window.innerWidth);
     this.windows = a.windows;
-    this.magnifier = a.magnifier;
     this.snapOn = a.snap;
     this.elements = [];
     this.level = 0;
@@ -242,6 +240,7 @@ export class Engine {
     }
     if (this.mode === "fixed") {
       this.sel = frameAt(p, this.fixed.w, this.fixed.h, this.bounds);
+      if (!e.ctrlKey) return this.cb.commit(this.sel, "done");
       this.phase = "selected";
       this.changed();
       return;
@@ -293,20 +292,22 @@ export class Engine {
     if (e.button !== 0 || !this.bitmap) return;
     switch (this.phase) {
       case "press": {
-        // A click: take what's highlighted.
+        // A click takes what's highlighted, straight away.
         const target = this.hover;
         this.phase = "idle";
         if (!target) break;
-        if (this.mode === "window") return this.cb.commit(target, "done");
-        if (this.mode === "text" || this.mode === "qr") return this.cb.commit(target, this.mode);
-        this.sel = { ...target };
-        this.phase = "selected";
-        break;
+        if (e.ctrlKey && this.mode !== "text" && this.mode !== "qr") {
+          this.sel = { ...target };
+          this.phase = "selected";
+          break;
+        }
+        return this.cb.commit(target, this.action());
       }
       case "draw":
         if (this.sel && this.sel.w >= 2 && this.sel.h >= 2) {
-          if (this.mode === "text" || this.mode === "qr") return this.cb.commit(this.sel, this.mode);
-          this.phase = "selected";
+          // Letting go captures and copies; with Ctrl the box stays to adjust.
+          if (e.ctrlKey && this.mode !== "text" && this.mode !== "qr") this.phase = "selected";
+          else return this.cb.commit(this.sel, this.action());
         } else {
           this.sel = null;
           this.phase = "idle";
@@ -323,6 +324,11 @@ export class Engine {
     }
     this.updateCursor();
     this.changed();
+  }
+
+  /** What a finished selection does in the current mode. */
+  private action(): CommitAction {
+    return this.mode === "text" || this.mode === "qr" ? this.mode : "done";
   }
 
   doubleClick(e: MouseEvent) {
@@ -539,9 +545,7 @@ export class Engine {
     if (focus && this.mode === "screen") this.drawFrame(focus, true);
     if (this.ruler) this.drawRuler(this.ruler.a, this.ruler.b);
 
-    const aiming = this.phase === "idle" || this.phase === "press" || this.phase === "draw" || this.phase === "resize";
-    if (aiming && this.mode !== "screen" && this.mode !== "fixed") this.drawCrosshair();
-    if ((this.magnifier && aiming && this.mode !== "screen") || this.mode === "color") this.drawMagnifier();
+    if (this.mode === "color") this.drawMagnifier();
   }
 
   private drawFrame(r: Rect, strong: boolean) {
@@ -582,15 +586,6 @@ export class Engine {
       ctx.fillRect(x0, my - g / 2, t, g);
       ctx.fillRect(x1 - t, my - g / 2, t, g);
     }
-  }
-
-  private drawCrosshair() {
-    const { ctx, ratio, cursor } = this;
-    if (cursor.x < 0) return;
-    const lw = Math.max(1, Math.round(ratio));
-    ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
-    ctx.fillRect(0, Math.floor(cursor.y), this.width, lw);
-    ctx.fillRect(Math.floor(cursor.x), 0, lw, this.height);
   }
 
   private drawMagnifier() {
