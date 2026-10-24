@@ -1,8 +1,7 @@
 // The main window: sidebar on the left, the current page on the right.
 
-import { Brush, CalendarDays, CalendarRange, Images, PanelLeftClose, PanelLeftOpen, Scan, Settings as Gear, Star, Sun } from "lucide-react";
+import { Brush, CalendarDays, CalendarRange, Images, PanelLeftClose, PanelLeftOpen, Settings as Gear, Star, Sun } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { api } from "../shared/api";
 import { useT } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
 import { useTheme } from "../shared/theme";
@@ -99,10 +98,6 @@ export function App() {
             {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
           </button>
         </div>
-        <button className="btn btn-primary capture-btn" onClick={() => api.captureStart("region")} title={collapsed ? t("lib.capture") : undefined} aria-label={t("lib.capture")}>
-          <Scan size={17} />
-          <span className="nav-label">{t("lib.capture")}</span>
-        </button>
 
         <nav className="nav">
           {navItem("all", <Images size={17} />, t("lib.all"), overview?.stats.count ?? null, onLibrary && filter === "all" && !app, () => show({ filter: "all" }))}
