@@ -61,9 +61,9 @@ jobs:
           rustup default 1.98.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: src-tauri -> target
+          workspaces: desktop/src-tauri -> target
       - name: Test
-        working-directory: src-tauri
+        working-directory: desktop/src-tauri
         # Tests that need a real screen or Windows' OCR languages run on a PC only.
         run: cargo test --lib --locked -- --skip live_tests --skip grabs_the_main_monitor
 

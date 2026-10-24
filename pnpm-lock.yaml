@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  desktop:
     dependencies:
       '@crabnebula/tauri-plugin-drag':
         specifier: ^2.1.0
