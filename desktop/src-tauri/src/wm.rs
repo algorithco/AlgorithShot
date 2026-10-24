@@ -85,6 +85,8 @@ pub fn card(app: &AppHandle) -> Result<WebviewWindow> {
         .skip_taskbar(true)
         .visible(false)
         .focused(false)
+        // Notifications must not take focus when Tauri shows them.
+        .focusable(false)
         .inner_size(CARD_WIDTH, 140.0)
         .build()?;
     win::disable_transitions(w.hwnd()?.0 as isize);
@@ -133,6 +135,7 @@ pub fn show_main(app: &AppHandle, page: Option<&str>) -> Result<()> {
     let url = format!("index.html#{}", page.unwrap_or("library"));
     WebviewWindowBuilder::new(app, "main", WebviewUrl::App(url.into()))
         .title("AlgorithShot")
+        .background_color(tauri::window::Color(17, 17, 17, 255))
         .inner_size(1180.0, 760.0)
         .min_inner_size(880.0, 560.0)
         .center()

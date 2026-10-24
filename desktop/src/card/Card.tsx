@@ -29,10 +29,13 @@ export function Card() {
 
   const hideNow = useCallback(() => {
     window.clearTimeout(timer.current);
+    hovering.current = false;
+    // Hiding must not wait for animation frames, which can be throttled when
+    // the card is unfocused. Remove the native input surface immediately.
+    api.cardHide().catch((e) => console.error(errorText(e)));
     setCard(null);
     setShot(null);
     setNote(null);
-    requestAnimationFrame(() => requestAnimationFrame(() => api.cardHide()));
   }, []);
 
   const arm = useCallback(
@@ -56,8 +59,10 @@ export function Card() {
       }),
       listen("card:reset", () => {
         window.clearTimeout(timer.current);
+        hovering.current = false;
         setCard(null);
         setShot(null);
+        setNote(null);
       }),
       // The privacy check finishes after the card appears; refresh the count.
       listen<string>("library:indexed", (e) => {

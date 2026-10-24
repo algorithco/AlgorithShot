@@ -51,7 +51,10 @@ pub fn show(app: &AppHandle, card: Card) {
 pub fn ready(app: &AppHandle, width: f64, height: f64) -> anyhow::Result<()> {
     let w = wm::card(app)?;
     wm::place_card(app, &w, width, height)?;
-    crate::win::show_topmost_no_activate(w.hwnd()?.0 as isize);
+    // Keep Tao's visibility state in sync. Showing the HWND directly leaves
+    // it marked hidden, so a later w.hide() does nothing and the empty,
+    // transparent topmost window keeps intercepting clicks.
+    w.show()?;
     Ok(())
 }
 
@@ -59,3 +62,4 @@ pub fn hide(app: &AppHandle) {
     let _ = app.emit_to("card", "card:reset", ());
     wm::hide_card(app);
 }
+
