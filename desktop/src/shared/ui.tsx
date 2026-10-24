@@ -4,13 +4,21 @@ import { useEffect, type ReactNode } from "react";
 import { create } from "zustand";
 import { prettyKey } from "./format";
 
+export const LOGO_CORNERS = [
+  "M25.5 44.5V30.4a4.9 4.9 0 0 1 4.9-4.9H44.5",
+  "M55.5 25.5h14.1a4.9 4.9 0 0 1 4.9 4.9V44.5",
+  "M74.5 55.5v14.1a4.9 4.9 0 0 1-4.9 4.9H55.5",
+  "M44.5 74.5H30.4a4.9 4.9 0 0 1-4.9-4.9V55.5",
+] as const;
+export const LOGO_FRAME_PATH = LOGO_CORNERS.join("");
+
 /** The app icon: viewfinder corners around the yellow dot, on ink (src-tauri/icons/logo.svg). */
 export function Logo({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
       <rect width="100" height="100" rx="22" fill="#111111" />
       <path
-        d="M25.5 44.5V30.4a4.9 4.9 0 0 1 4.9-4.9H44.5M55.5 25.5h14.1a4.9 4.9 0 0 1 4.9 4.9V44.5M74.5 55.5v14.1a4.9 4.9 0 0 1-4.9 4.9H55.5M44.5 74.5H30.4a4.9 4.9 0 0 1-4.9-4.9V55.5"
+        d={LOGO_FRAME_PATH}
         fill="none"
         stroke="#ffffff"
         strokeWidth="8"
