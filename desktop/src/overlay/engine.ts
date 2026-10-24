@@ -67,6 +67,8 @@ export type LoadArgs = {
   mode: Mode;
   cursor: [number, number] | null;
   snap: boolean;
+  /** Highlight the window or part under the pointer (always in Window mode). */
+  highlight: boolean;
 };
 
 const TALLY = "#ffd300";
@@ -91,6 +93,7 @@ export class Engine {
   sel: Rect | null = null;
   fixed = { w: 1280, h: 720 };
   snapOn = true;
+  highlightOn = false;
 
   private ctx: CanvasRenderingContext2D;
   private bitmap: ImageBitmap | null = null;
@@ -140,6 +143,7 @@ export class Engine {
     this.ratio = a.width / Math.max(1, window.innerWidth);
     this.windows = a.windows;
     this.snapOn = a.snap;
+    this.highlightOn = a.highlight;
     this.elements = [];
     this.level = 0;
     this.ruler = null;
@@ -351,7 +355,7 @@ export class Engine {
         break;
       case "idle":
         this.updateHover();
-        if (this.mode === "region" || this.mode === "text" || this.mode === "qr") this.cb.elementsAt?.(p);
+        if (this.highlightOn && (this.mode === "region" || this.mode === "text" || this.mode === "qr")) this.cb.elementsAt?.(p);
         break;
     }
     this.updateCursor();
@@ -362,7 +366,8 @@ export class Engine {
     if (e.button !== 0 || !this.bitmap) return;
     switch (this.phase) {
       case "press": {
-        // A click takes what's highlighted, straight away.
+        // A click takes what's highlighted, straight away. With highlighting
+        // off nothing is, so a click without a drag does nothing.
         const target = this.hover;
         this.phase = "idle";
         if (!target) break;
@@ -570,6 +575,8 @@ export class Engine {
       case "ruler":
         break;
       default: {
+        // Region, text and QR leave the area to the user unless asked to help.
+        if (this.mode !== "window" && !this.highlightOn) break;
         const el = this.mode === "window" ? undefined : this.elements[Math.min(this.level, this.elements.length - 1)];
         if (el && contains(el.rect, p)) {
           rect = el.rect;

@@ -29,12 +29,7 @@ export const en = {
   "startup.footer": "Capture. Refine. Share.",
   "startup.local": "On your device",
 
-  "setup.eyebrow": "A place for every detail",
-  "setup.railTitle": "Your space.\nYour way.",
-  "setup.railSubtitle": "A few thoughtful choices for the way you capture.",
-  "setup.navigation": "Setup steps",
   "setup.step": "Step {n} of {total}",
-  "setup.local": "Made for your desktop",
   "setup.draftNote": "Your choices apply when you finish",
   "setup.personalize.nav": "Make it yours",
   "setup.personalize.title": "A little more you.",
@@ -184,8 +179,6 @@ export const en = {
   "lib.empty.body": "Press {key} or click the tray icon to take your first one. It will show up here.",
   "lib.noResults": "Nothing matches “{q}”",
   "lib.yesterday": "Yesterday",
-  "lib.count": "{n} screenshots · {size}",
-  "lib.countOne": "1 screenshot · {size}",
   "lib.selected": "{n} selected",
   "lib.clearSelection": "Clear selection",
   "lib.copyFiles": "Copy as files",
@@ -242,7 +235,6 @@ export const en = {
   "set.hotkeyScreen": "Full screen",
   "set.hotkeyRepeat": "Repeat last area",
   "set.hotkeyLibrary": "Open the library",
-  "set.moreHotkeys": "More hotkeys",
   "set.hotkeyPress": "Press the keys…",
   "set.hotkeyNone": "Not set",
   "set.hotkeyClear": "Clear",
@@ -407,6 +399,12 @@ export const en = {
   "ov.pick.copy": "Copy",
   "ov.pick.copyAll": "Copy all",
   "ov.pick.copied": "Copied",
+  "set.highlight": "Highlight the window under the pointer",
+  "setup.highlightHint": "Click a highlighted window or a part of it to capture it. Off: you always draw the area yourself.",
+  "ov.hint.regionDraw": "Drag to capture · Hold Ctrl as you let go to adjust first · Esc to cancel",
+  "set.hotkeys": "Hotkeys",
+  "lib.collapse": "Collapse the sidebar",
+  "lib.expand": "Expand the sidebar",
 } as const;
 
 export type Key = keyof typeof en;

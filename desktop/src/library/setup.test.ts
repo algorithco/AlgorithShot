@@ -6,7 +6,7 @@ const initial: Settings = {
   language: "uz", theme: "dark", saveDir: "", saveAll: true,
   filePattern: "{app} {date} {time}", format: "png", jpegQuality: 90, webpQuality: 90,
   copyAfterCapture: true, showCard: true, openEditor: false, cardSeconds: 6,
-  snap: true, elements: true, launchAtLogin: false, indexText: true, privacyCheck: true,
+  snap: true, highlight: false, elements: true, launchAtLogin: false, indexText: true, privacyCheck: true,
   autoCleanDays: 0, sound: false, welcomeDone: false, setupVersion: 0,
   hotkeys: { capture: "PrintScreen", captureAlt: "Ctrl+Shift+PrintScreen", text: "", qr: "", fullScreen: "", repeat: "", library: "" },
 };

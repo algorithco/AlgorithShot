@@ -124,6 +124,7 @@ struct OverlayStart {
     cursor: Option<(i32, i32)>,
     last: Option<Rect>,
     snap: bool,
+    highlight: bool,
     elements: bool,
 }
 
@@ -204,7 +205,8 @@ fn begin(app: &AppHandle, mode: &str) -> Result<()> {
             cursor: m.rect.contains(cx, cy).then(|| (cx - m.rect.x, cy - m.rect.y)),
             last: last.as_ref().filter(|l| l.monitor_name == m.name).map(|l| l.rect),
             snap: settings.snap,
-            elements: settings.elements,
+            highlight: settings.highlight,
+            elements: settings.highlight && settings.elements,
         };
         overlay.emit("overlay:start", payload)?;
     }
