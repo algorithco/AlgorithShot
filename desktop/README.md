@@ -7,10 +7,12 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
 ## What it does
 
 - **Capture**: one hotkey (Print Screen, or Ctrl+Shift+Print Screen) freezes the
-  screen. Drag a region, click a window or a part of it (buttons, panels,
-  messages via UI Automation), capture the full screen or a fixed size, or use a
-  timer. Letting go copies the capture at once; hold Ctrl to adjust it first
-  with the live size in real pixels, arrow-key nudging and typed sizes.
+  screen. Drag a region, click a window, capture the full screen or a fixed size,
+  or use a timer. With **Highlight the window under the pointer** turned on in
+  Settings, a click in Region mode also captures a window or a part of it
+  (buttons, panels, messages via UI Automation). Letting go copies the capture at
+  once; hold Ctrl to adjust it first with the live size in real pixels, arrow-key
+  nudging and typed sizes.
 - **Screen tools**: copy text from anything on screen (Windows OCR): the screen
   stays frozen and you pick the words right there. Scan QR codes and barcodes,
   pick colours, measure with the ruler, pin a capture on top.
