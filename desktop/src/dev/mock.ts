@@ -76,15 +76,20 @@ const settings: Settings = {
   autoCleanDays: 0,
   sound: false,
   welcomeDone: true,
+  setupVersion: 1,
 };
 
 let shots = makeShots(46);
 let trash: Shot[] = [];
 const params = new URLSearchParams(location.search);
 if (params.has("empty")) shots = [];
-if (params.has("welcome")) settings.welcomeDone = false;
+if (params.has("welcome") || params.has("setup")) {
+  settings.welcomeDone = false;
+  settings.setupVersion = 0;
+}
 if (params.get("lang")) settings.language = params.get("lang") as Settings["language"];
 if (params.get("theme")) settings.theme = params.get("theme") as Settings["theme"];
+let setupSaveFailed = false;
 
 const SAMPLE_TEXT = "Toʻlov muvaffaqiyatli amalga oshirildi\nSumma: 150 000 soʻm\nKarta: 8600 **** **** 1234\nSana: 23.10.2026 14:05";
 
@@ -118,6 +123,10 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
     case "get_settings":
       return settings;
     case "save_settings":
+      if (params.has("setup-save-error") && !setupSaveFailed) {
+        setupSaveFailed = true;
+        throw new Error("The screenshot folder could not be written. Check the folder and try again.");
+      }
       Object.assign(settings, args.settings);
       emit("settings:changed", settings);
       return settings;
@@ -128,6 +137,8 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
       ];
     case "hotkeys_suspend":
       return [];
+    case "pick_folder":
+      return "C:\\Users\\you\\Pictures\\My screenshots";
     case "app_info":
       return {
         version: "0.1.0",

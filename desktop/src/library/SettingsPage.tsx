@@ -1,13 +1,12 @@
 // Settings. Every change saves right away; there is no Save button.
 
-import { listen } from "@tauri-apps/api/event";
-import { AlertTriangle, ChevronDown, FolderOpen, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { AlertTriangle, ChevronDown, FolderOpen } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, errorText, type AppInfo, type HotkeyStatus, type Hotkeys, type Settings } from "../shared/api";
-import { shortcutFromEvent } from "../shared/format";
+import { HotkeyInput } from "../shared/HotkeyInput";
 import { useT, type Key } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
-import { Keys, Segmented, Switch, toast } from "../shared/ui";
+import { Segmented, Switch, toast } from "../shared/ui";
 
 export function SettingsPage() {
   const t = useT();
@@ -20,7 +19,7 @@ export function SettingsPage() {
   useEffect(() => {
     api.appInfo().then(setInfo);
     api.hotkeyStatus().then(setStatus);
-  }, [settings.hotkeys]);
+  }, [settings.hotkeys, settings.saveDir]);
 
   const save = (patch: Partial<Settings>) =>
     update(patch)
@@ -67,6 +66,9 @@ export function SettingsPage() {
         </Row>
         <Row label={t("set.startup")} hint={t("set.startupHint")}>
           <Switch checked={settings.launchAtLogin} onChange={(v) => save({ launchAtLogin: v })} label={t("set.startup")} />
+        </Row>
+        <Row label={t("setup.reopen")} hint={t("setup.reopenHint")}>
+          <button className="btn" onClick={() => { location.hash = "setup"; }}>{t("setup.openSetup")} <span aria-hidden="true">↗</span></button>
         </Row>
       </Section>
 
@@ -144,7 +146,7 @@ export function SettingsPage() {
         </Row>
         <Row
           label={t("set.folder")}
-          hint={`${settings.saveDir || info?.defaultSaveDir || ""}${info?.saveDirSynced ? ` · ${t("set.folderSynced")}` : ""}`}
+          hint={`${info?.saveDir || settings.saveDir || info?.defaultSaveDir || ""} · ${t("set.folderKept")}${info?.saveDirSynced ? ` · ${t("set.folderSynced")}` : ""}`}
         >
           <div className="row-controls">
             <button
@@ -260,66 +262,5 @@ function PatternInput({ value, onSave }: { value: string; onSave: (v: string) =>
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
       spellCheck={false}
     />
-  );
-}
-
-function HotkeyInput({ value, status, onChange }: { value: string; status?: HotkeyStatus; onChange: (v: string) => void }) {
-  const t = useT();
-  const [recording, setRecording] = useState(false);
-  const changeRef = useRef(onChange);
-  changeRef.current = onChange;
-
-  useEffect(() => {
-    if (!recording) return;
-    api.hotkeysSuspend(true);
-    const take = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.key === "Escape") {
-        setRecording(false);
-        return;
-      }
-      const s = shortcutFromEvent(e);
-      if (s) {
-        changeRef.current(s);
-        setRecording(false);
-      }
-    };
-    // Windows sends Print Screen to pages only as a key-up.
-    const up = (e: KeyboardEvent) => {
-      if (e.code === "PrintScreen") take(e);
-    };
-    // The app's keyboard hook catches Print Screen before Windows can open
-    // the Snipping Tool, and reports it here.
-    const fromHook = listen<string>("hotkey:record", (e) => {
-      changeRef.current(e.payload);
-      setRecording(false);
-    });
-    window.addEventListener("keydown", take, true);
-    window.addEventListener("keyup", up, true);
-    return () => {
-      window.removeEventListener("keydown", take, true);
-      window.removeEventListener("keyup", up, true);
-      fromHook.then((un) => un()).catch(() => {});
-      api.hotkeysSuspend(false);
-    };
-  }, [recording]);
-
-  return (
-    <div className="hotkey">
-      <button className={`hotkey-box${recording ? " recording" : ""}`} onClick={() => setRecording(true)} onBlur={() => setRecording(false)}>
-        {recording ? t("set.hotkeyPress") : value ? <Keys value={value} /> : <span className="muted">{t("set.hotkeyNone")}</span>}
-      </button>
-      {value && !recording && (
-        <button className="icon-btn" title={t("set.hotkeyClear")} onClick={() => onChange("")}>
-          <X size={15} />
-        </button>
-      )}
-      {status && !status.ok && (
-        <span className="hotkey-warn" title={status.error ?? ""}>
-          <AlertTriangle size={15} /> {t("set.hotkeyTaken")}
-        </span>
-      )}
-    </div>
   );
 }

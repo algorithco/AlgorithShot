@@ -1,25 +1,26 @@
 // The main window: sidebar on the left, the current page on the right.
 
-import { listen } from "@tauri-apps/api/event";
 import { Brush, Calendar, CalendarDays, CalendarRange, Images, Settings as Gear, Star, Sun } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../shared/api";
 import { formatBytes } from "../shared/format";
 import { useT } from "../shared/i18n";
-import { initSettings, useSettings } from "../shared/settings";
+import { useSettings } from "../shared/settings";
 import { useTheme } from "../shared/theme";
 import { Keys, Logo, Toasts } from "../shared/ui";
 import { CleanupPage } from "./CleanupPage";
+import { AppIcon } from "./AppIcon";
 import { LibraryPage } from "./LibraryPage";
 import { SettingsPage } from "./SettingsPage";
 import { useLibrary } from "./store";
-import { WelcomePage } from "./WelcomePage";
+import { SetupPage } from "./SetupPage";
+import { needsSetup } from "./setup";
 
-export type Page = "library" | "cleanup" | "settings" | "welcome";
+export type Page = "library" | "cleanup" | "settings" | "setup";
 
 function pageFromHash(): Page {
   const h = location.hash.replace("#", "");
-  return h === "cleanup" || h === "settings" || h === "welcome" ? h : "library";
+  return h === "welcome" ? "setup" : h === "cleanup" || h === "settings" || h === "setup" ? h : "library";
 }
 
 export function App() {
@@ -27,18 +28,14 @@ export function App() {
   const t = useT();
   const settings = useSettings((s) => s.settings);
   const [page, setPage] = useState<Page>(pageFromHash);
+  const [setupActive, setSetupActive] = useState(() => needsSetup(useSettings.getState().settings));
   const { filter, app, overview, setQuery } = useLibrary();
 
   useEffect(() => {
-    initSettings();
     const onHash = () => setPage(pageFromHash());
     window.addEventListener("hashchange", onHash);
-    const sub = listen<string>("nav", (e) => {
-      location.hash = e.payload;
-    });
     return () => {
       window.removeEventListener("hashchange", onHash);
-      sub.then((un) => un());
     };
   }, []);
 
@@ -52,7 +49,9 @@ export function App() {
   };
 
   if (!settings) return null;
-  if (page === "welcome") return <WelcomePage onDone={() => go("library")} />;
+  if (setupActive || needsSetup(settings) || page === "setup") {
+    return <SetupPage onDone={() => { setSetupActive(false); go("library"); }} onCancel={!needsSetup(settings) ? () => { setSetupActive(false); go("settings"); } : undefined} />;
+  }
 
   const onLibrary = page === "library";
   const navItem = (key: string, icon: ReactNode, label: string, count: number | null, active: boolean, onClick: () => void) => (
@@ -86,10 +85,10 @@ export function App() {
             <>
               <div className="nav-heading edge">{t("lib.apps")}</div>
               <div className="nav-apps">
-                {overview.apps.slice(0, 12).map((a) =>
+                {overview.apps.map((a) =>
                   navItem(
                     `app-${a.app}`,
-                    <span className="app-dot">{a.app.slice(0, 1).toUpperCase()}</span>,
+                    <AppIcon app={a.app} revision={a.count} />,
                     a.app,
                     a.count,
                     onLibrary && app === a.app,

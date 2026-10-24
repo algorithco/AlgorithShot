@@ -26,14 +26,19 @@ export const useSettings = create<Store>((set, get) => ({
   },
 }));
 
-let following = false;
+let following: Promise<void> | null = null;
 
 /** Loads settings and keeps them in sync with the other windows. */
 export async function initSettings(): Promise<Settings> {
   const s = await useSettings.getState().load();
   if (!following) {
-    following = true;
-    await listen<Settings>("settings:changed", (e) => useSettings.setState({ settings: e.payload }));
+    following = listen<Settings>("settings:changed", (e) => useSettings.setState({ settings: e.payload }))
+      .then(() => {})
+      .catch((error: unknown) => {
+        following = null;
+        throw error;
+      });
   }
+  await following;
   return s;
 }
