@@ -173,7 +173,8 @@ pub struct ElementOut {
 #[tauri::command]
 pub async fn element_at(app: AppHandle, session_id: u64, monitor_id: usize, x: i32, y: i32) -> Vec<ElementOut> {
     let st = state(&app);
-    if !st.settings().elements {
+    let settings = st.settings();
+    if !settings.highlight || !settings.elements {
         return Vec::new();
     }
     let Some(session) = st.capture.current().filter(|s| s.id == session_id) else { return Vec::new() };

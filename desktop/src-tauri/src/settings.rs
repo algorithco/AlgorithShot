@@ -75,7 +75,11 @@ pub struct Settings {
     pub open_editor: bool,
     pub card_seconds: u32,
     pub snap: bool,
-    /// Snap to buttons, panels and messages inside windows (UI Automation).
+    /// Highlight the window under the pointer in Region, Copy text and Scan
+    /// QR, so a click captures it. Off: the user always draws the area.
+    pub highlight: bool,
+    /// With `highlight`, also the buttons, panels and messages inside
+    /// windows (UI Automation).
     pub elements: bool,
     pub hotkeys: Hotkeys,
     pub launch_at_login: bool,
@@ -107,6 +111,7 @@ impl Default for Settings {
             open_editor: false,
             card_seconds: 6,
             snap: true,
+            highlight: false,
             elements: true,
             hotkeys: Hotkeys::default(),
             launch_at_login: false,

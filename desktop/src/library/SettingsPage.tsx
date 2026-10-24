@@ -112,9 +112,14 @@ export function SettingsPage() {
         <Row label={t("set.snap")}>
           <Switch checked={settings.snap} onChange={(v) => save({ snap: v })} label={t("set.snap")} />
         </Row>
-        <Row label={t("set.elements")}>
-          <Switch checked={settings.elements} onChange={(v) => save({ elements: v })} label={t("set.elements")} />
+        <Row label={t("set.highlight")} hint={t("setup.highlightHint")}>
+          <Switch checked={settings.highlight} onChange={(v) => save({ highlight: v })} label={t("set.highlight")} />
         </Row>
+        {settings.highlight && (
+          <Row label={t("set.elements")}>
+            <Switch checked={settings.elements} onChange={(v) => save({ elements: v })} label={t("set.elements")} />
+          </Row>
+        )}
       </Section>
 
       <Section title={t("set.after")}>

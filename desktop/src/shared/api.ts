@@ -45,6 +45,7 @@ export type Settings = {
   openEditor: boolean;
   cardSeconds: number;
   snap: boolean;
+  highlight: boolean;
   elements: boolean;
   hotkeys: Hotkeys;
   launchAtLogin: boolean;

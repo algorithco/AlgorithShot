@@ -35,6 +35,7 @@ type Start = {
   cursor: [number, number] | null;
   last: Rect | null;
   snap: boolean;
+  highlight: boolean;
   elements: boolean;
 };
 
@@ -174,6 +175,7 @@ export function Overlay() {
           mode: s.mode,
           cursor: s.cursor,
           snap: s.snap,
+          highlight: s.highlight,
         });
         requestAnimationFrame(() => api.overlayReady(s.sessionId, s.monitor.id));
       } catch (e) {
@@ -240,6 +242,7 @@ export function Overlay() {
     if (!view) return "";
     if (view.phase === "selected") return t("ov.hint.selected");
     if (view.phase === "text") return t("ov.hint.pick");
+    if (view.mode === "region" && !session?.highlight) return t("ov.hint.regionDraw");
     return t(`ov.hint.${view.mode}` as Key);
   };
 

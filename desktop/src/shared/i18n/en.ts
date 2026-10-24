@@ -407,6 +407,9 @@ export const en = {
   "ov.pick.copy": "Copy",
   "ov.pick.copyAll": "Copy all",
   "ov.pick.copied": "Copied",
+  "set.highlight": "Highlight the window under the pointer",
+  "setup.highlightHint": "Click a highlighted window or a part of it to capture it. Off: you always draw the area yourself.",
+  "ov.hint.regionDraw": "Drag to capture · Hold Ctrl as you let go to adjust first · Esc to cancel",
 } as const;
 
 export type Key = keyof typeof en;

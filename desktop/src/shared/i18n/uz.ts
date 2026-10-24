@@ -408,4 +408,7 @@ export const uz: Record<Key, string> = {
   "ov.pick.copy": "Nusxalash",
   "ov.pick.copyAll": "Hammasini nusxalash",
   "ov.pick.copied": "Nusxalandi",
+  "set.highlight": "Koʻrsatkich ostidagi oynani belgilash",
+  "setup.highlightHint": "Belgilangan oyna yoki uning qismini bossangiz, u suratga olinadi. Oʻchiq boʻlsa, maydonni doim oʻzingiz chizasiz.",
+  "ov.hint.regionDraw": "Maydonni torting, darhol olinadi · Avval tuzatish uchun qoʻyib yuborayotganda Ctrl ni bosib turing · Bekor qilish: Esc",
 };
