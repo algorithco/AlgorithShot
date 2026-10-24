@@ -7,6 +7,7 @@
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
+    "beforeBundleCommand": "powershell -NoProfile -File dev/build-installer-ui.ps1",
     "frontendDist": "../dist"
   },
   "app": {
@@ -23,8 +24,10 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "publisher": "Algorithco",
+    "copyright": "Copyright © 2026 Algorithco. All rights reserved.",
     "category": "Productivity",
     "shortDescription": "Screenshots that are exact, searchable and safe to share",
     "icon": [
@@ -36,7 +39,30 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "template": "windows/installer.nsi",
+        "installerHooks": "windows/theme.nsh",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "languages": ["English", "Uzbek", "Russian"],
+        "customLanguageFiles": {
+          "English": "windows/languages/English.nsh",
+          "Uzbek": "windows/languages/Uzbek.nsh",
+          "Russian": "windows/languages/Russian.nsh"
+        },
+        "displayLanguageSelector": false,
+        "compression": "lzma"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNCNjVEMTgyQjJBNzNEMTkKUldRWlBhZXlndEZsTy94eWI1L0t6WG01eGVwNklyQXlPVEdQNURwUTBVcjE4UklNL3pybHZUZ2MK",
+      "endpoints": [
+        "https://github.com/algorithco/algorith-shot/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }
