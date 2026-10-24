@@ -4,13 +4,27 @@
   display: grid;
   grid-template-columns: 236px 1fr;
   height: 100vh;
+  transition: grid-template-columns 0.18s var(--ease);
+}
+
+/* Collapsed: icons only, names as tooltips. */
+.shell.collapsed {
+  grid-template-columns: 64px 1fr;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell {
+    transition: none;
+  }
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
   padding: 16px 12px 12px;
   background: var(--surface);
   border-right: 1px solid var(--line);
@@ -25,18 +39,54 @@
   color: var(--ink);
 }
 
-.capture-btn {
-  height: 38px;
-  justify-content: space-between;
-  padding: 0 8px 0 14px;
+.brand-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.capture-btn .kbd {
-  background: rgba(17, 17, 17, 0.12);
-  border-color: rgba(17, 17, 17, 0.25);
-  color: var(--tally-ink);
-  height: 20px;
-  font-size: 11px;
+.sidebar-toggle {
+  flex: none;
+  color: var(--muted);
+}
+
+.capture-btn {
+  height: 38px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.collapsed .sidebar {
+  padding: 16px 10px 12px;
+}
+
+.collapsed .brand {
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.collapsed .brand-name,
+.collapsed .nav-label,
+.collapsed .nav-count,
+.collapsed .nav-heading {
+  display: none;
+}
+
+.collapsed .capture-btn,
+.collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Without the heading, a line keeps the apps apart from the date filters. */
+.collapsed .nav-apps {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
 }
 
 .nav {
@@ -118,13 +168,6 @@
   width: 18px;
   height: 18px;
   object-fit: contain;
-}
-
-.storage {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px 0;
 }
 
 .main {
@@ -609,14 +652,71 @@
   color: var(--ink-2);
 }
 
-.set-section {
-  max-width: 760px;
-  margin-top: 22px;
+/* Settings: the groups on the left, the chosen group on the right. */
+.set-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 760px);
+  gap: 28px;
+  align-items: start;
+  margin-top: 18px;
+}
+
+.set-groups {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.set-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.set-group:hover {
+  background: var(--sunken);
+  color: var(--ink);
+}
+
+.set-group.active {
+  background: var(--tally-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.set-group.active svg {
+  color: var(--tally-text);
+}
+
+/* Narrow windows: the groups become a row above the settings. */
+@media (max-width: 860px) {
+  .set-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .set-groups {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
 }
 
 .set-heading {
-  margin: 0 0 8px 2px;
-  font-weight: 600;
+  margin: 4px 0 12px 2px;
+  font-size: 18px;
 }
 
 .set-card {
@@ -668,23 +768,6 @@
   text-align: right;
 }
 
-.more {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 10px 16px;
-  border: 0;
-  border-top: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink-2);
-  text-align: left;
-  cursor: pointer;
-}
-
-.more:hover {
-  color: var(--ink);
-}
 
 .hotkey {
   display: flex;
