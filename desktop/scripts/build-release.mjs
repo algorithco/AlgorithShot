@@ -27,13 +27,16 @@ try {
   // No shell interpolation of arguments or signing keys.
   const override = JSON.stringify(updaterBuildConfig(releaseEnv.TAURI_UPDATER_PUBLIC_KEY));
   const cli = join(root, "node_modules/@tauri-apps/cli/tauri.js");
-  const build = spawnSync(process.execPath, [cli, "build", "--config", override], {
-    cwd: root,
-    stdio: "inherit",
-    env: releaseEnv,
-  });
-  if (build.error) throw build.error;
-  if (build.status !== 0) process.exit(build.status ?? 1);
+  const run = (command, args) => {
+    const result = spawnSync(command, args, { cwd: root, stdio: "inherit", env: releaseEnv });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`${command} failed (${result.status ?? result.signal}).`);
+  };
+  run(process.execPath, [cli, "build", "--no-bundle", "--config", override]);
+  // Validate the executable's asset lookups and decompression, not just dist/.
+  // This mode exits before opening windows or touching the user's app data.
+  run(join(root, "src-tauri/target/release/algorithco-shot.exe"), ["--verify-assets"]);
+  run(process.execPath, [cli, "bundle", "--config", override]);
 
   const output = join(root, "src-tauri/target/release/bundle/nsis");
   const installer = `${config.productName}_${release.version}_x64-setup.exe`;

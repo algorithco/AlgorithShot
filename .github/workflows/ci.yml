@@ -66,7 +66,7 @@ jobs:
       - name: Test
         working-directory: desktop/src-tauri
         # Tests that need a real screen or Windows' OCR languages run on a PC only.
-        run: cargo test --lib --locked -- --skip live_tests --skip grabs_the_main_monitor
+        run: cargo test --lib --locked --features tauri/custom-protocol -- --skip live_tests --skip grabs_the_main_monitor
       - name: Check native installer UI
         run: powershell -NoProfile -File desktop/dev/build-installer-ui.ps1
 

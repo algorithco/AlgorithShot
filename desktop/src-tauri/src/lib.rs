@@ -2,6 +2,7 @@
 //! finds it again, and helps you share it safely.
 
 mod app_icons;
+mod assets;
 mod capture;
 mod card;
 mod clipboard;
@@ -70,6 +71,19 @@ fn show_main_later(app: &AppHandle, page: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    // Run before single-instance forwarding, storage, hotkeys or any windows.
+    // The release script checks the compiled executable before bundling it.
+    if std::env::args().any(|arg| arg == "--verify-assets") {
+        match assets::verify(context.assets()) {
+            Ok(count) => println!("Verified {count} embedded assets."),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| handle_args(app, &args, false)))
         .plugin(
@@ -187,7 +201,7 @@ pub fn run() {
             editor::open_image_file,
             editor::open_image_bytes,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building the app");
 
     app.run(|_app, event| {
