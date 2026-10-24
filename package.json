@@ -9,11 +9,16 @@
   "scripts": {
     "dev": "pnpm --dir desktop dev",
     "desktop:dev": "pnpm --dir desktop tauri dev",
+    "api:dev": "pnpm --dir shot-api dev",
     "tauri": "pnpm --dir desktop tauri",
     "build": "pnpm -r build",
     "desktop:build": "pnpm --dir desktop build",
+    "api:build": "pnpm --dir shot-api build",
+    "api:start": "pnpm --dir shot-api start",
     "preview": "pnpm --dir desktop preview",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "test:release": "pnpm --dir desktop test:release",
+    "release:build": "pnpm --dir desktop release:build"
   }
 }
