@@ -1,7 +1,9 @@
 // The main window: sidebar on the left, the current page on the right.
+// Also the setup popup window, which shows only the guided setup.
 
 import { Brush, CalendarDays, CalendarRange, Images, PanelLeftClose, PanelLeftOpen, Settings as Gear, Star, Sun } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { api } from "../shared/api";
 import { useT } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
 import { useTheme } from "../shared/theme";
@@ -32,12 +34,28 @@ function pageFromHash(): Page {
   return h === "welcome" ? "setup" : h === "cleanup" || h === "settings" || h === "setup" ? h : "library";
 }
 
+/** The setup popup: the guided setup alone; finishing opens the library. */
+export function SetupWindow() {
+  useTheme();
+  const settings = useSettings((s) => s.settings);
+  // On first run there's nothing to go back to, so no Cancel.
+  const [firstRun] = useState(() => needsSetup(useSettings.getState().settings));
+  if (!settings) return null;
+  return (
+    <SetupPage
+      compact
+      onDone={() => void api.setupFinish(true)}
+      onAfterCapture={() => void api.setupFinish(false)}
+      onCancel={firstRun ? undefined : () => void api.setupFinish(false)}
+    />
+  );
+}
+
 export function App() {
   useTheme();
   const t = useT();
   const settings = useSettings((s) => s.settings);
   const [page, setPage] = useState<Page>(pageFromHash);
-  const [setupActive, setSetupActive] = useState(() => needsSetup(useSettings.getState().settings));
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const { filter, app, overview, setQuery } = useLibrary();
 
@@ -53,15 +71,23 @@ export function App() {
     location.hash = p;
   };
 
+  // Setup has its own small window: opened on first run and from Settings.
+  const firstRun = !!settings && needsSetup(settings);
+  useEffect(() => {
+    if (firstRun) void api.setupOpen();
+  }, [firstRun]);
+  useEffect(() => {
+    if (page !== "setup") return;
+    void api.setupOpen();
+    location.hash = "settings";
+  }, [page]);
+
   const show = (q: { filter?: "all" | "favorites" | "today" | "week" | "month"; app?: string }) => {
     setQuery({ filter: q.filter ?? "all", app: q.app ?? "" });
     go("library");
   };
 
   if (!settings) return null;
-  if (setupActive || needsSetup(settings) || page === "setup") {
-    return <SetupPage onDone={() => { setSetupActive(false); go("library"); }} onCancel={!needsSetup(settings) ? () => { setSetupActive(false); go("settings"); } : undefined} />;
-  }
 
   const toggleSidebar = () => {
     const next = !collapsed;

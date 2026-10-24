@@ -321,6 +321,25 @@
   .setup-footer-caption { max-width: 130px; font-size: 9px; }
   .setup-primary { gap: 10px; padding: 0 13px; font-size: 11px; }
 }
+/* The setup window: a small popup without the side rail. The brand and the
+   step progress share one top bar; headings and spacing are tighter. */
+.setup-shell.compact { grid-template-columns: minmax(0, 1fr); }
+.setup-shell.compact .setup-topbar { min-height: 0; padding: 14px 26px; gap: 16px; }
+.setup-shell.compact .setup-topbar > div:not(.setup-topbar-brand) { display: flex; flex-direction: column; align-items: center; }
+.setup-shell.compact .setup-progress { margin-top: 7px; }
+.setup-shell.compact .setup-progress > i { width: 20px; }
+.setup-shell.compact .setup-top-note { max-width: 190px; }
+.setup-topbar-brand { display: flex; align-items: center; gap: 9px; flex: none; }
+.setup-topbar .setup-topbar-brand > span { display: inline; color: var(--ink); font: 650 16px/1 var(--font-display); letter-spacing: -0.5px; text-transform: none; }
+.setup-topbar-brand > span > span { color: #ffd300; }
+.setup-shell.compact .setup-content { padding: 22px 26px; }
+.setup-shell.compact .setup-footer { padding: 12px 26px; }
+.setup-shell.compact .setup-step-heading { margin-bottom: 18px; }
+.setup-shell.compact .setup-step-heading h1 { margin: 6px 0 7px; font-size: 26px; letter-spacing: -0.7px; }
+.setup-shell.compact .setup-step-heading > p { font-size: 12.5px; line-height: 1.55; }
+.setup-shell.compact .setup-success { padding: 8px 0 12px; }
+.setup-shell.compact .setup-success-logo { margin-bottom: 18px; }
+.setup-shell.compact .setup-success h1 { font-size: 28px; letter-spacing: -0.8px; }
 @media (prefers-reduced-motion: reduce) {
   .setup-shell *, .setup-shell *::before, .setup-shell *::after { animation: none !important; transition: none !important; }
 }

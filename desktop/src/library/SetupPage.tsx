@@ -15,7 +15,8 @@ function initialStep(): SetupStep {
   return SETUP_STEPS.find((step) => step === requested) ?? "personalize";
 }
 
-export function SetupPage({ onDone, onCancel }: { onDone: () => void; onCancel?: () => void }) {
+/** `compact`: laid out for the small setup window, without the side rail. */
+export function SetupPage({ onDone, onCancel, onAfterCapture, compact }: { onDone: () => void; onCancel?: () => void; onAfterCapture?: () => void; compact?: boolean }) {
   const settings = useSettings((store) => store.settings)!;
   const [draft, setDraft] = useState(() => setupDraft(settings));
   const [step, setStep] = useState<SetupStep>(initialStep);
@@ -130,7 +131,7 @@ export function SetupPage({ onDone, onCancel }: { onDone: () => void; onCancel?:
   const takeFirst = async () => {
     if (capturing) return;
     setCapturing(true);
-    try { await api.captureStart("region"); if (mounted.current) onDone(); }
+    try { await api.captureStart("region"); if (mounted.current) (onAfterCapture ?? onDone)(); }
     catch (failure) { if (mounted.current) setError({ message: errorText(failure) }); }
     finally { if (mounted.current) setCapturing(false); }
   };
@@ -138,8 +139,8 @@ export function SetupPage({ onDone, onCancel }: { onDone: () => void; onCancel?:
   const unavailableKeys = verifiedKeys?.filter((item) => !item.ok) ?? [];
 
   return (
-    <div className="setup-shell" data-appearance={appearance} lang={lang}>
-      <aside className="setup-rail">
+    <div className={`setup-shell${compact ? " compact" : ""}`} data-appearance={appearance} lang={lang}>
+      {!compact && <aside className="setup-rail">
         <div className="setup-brand"><Logo size={31} /><span>Algorith<span>Shot</span></span></div>
         <div className="setup-rail-intro"><span className="setup-eyebrow">{t("setup.eyebrow")}</span><h2>{t("setup.railTitle")}</h2><p>{t("setup.railSubtitle")}</p></div>
         <nav className="setup-navigation" aria-label={t("setup.navigation")}>{SETUP_STEPS.map((item, position) => {
@@ -147,10 +148,10 @@ export function SetupPage({ onDone, onCancel }: { onDone: () => void; onCancel?:
           return <button type="button" key={item} className={`setup-nav-step${step === item ? " current" : ""}${completed.has(item) ? " completed" : ""}`} aria-label={t(`setup.${item}.nav`)} aria-current={step === item ? "step" : undefined} disabled={phase !== "editing" || pickingFolder} onClick={() => go(item)}><span className="setup-step-number">{completed.has(item) ? <Check size={14} /> : String(position + 1).padStart(2, "0")}</span><span>{t(`setup.${item}.nav`)}</span><Icon className="setup-step-icon" size={15} /></button>;
         })}</nav>
         <div className="setup-rail-bottom"><div className="setup-rail-art" aria-hidden="true"><div className="setup-art-window"><div className="setup-art-top"><i /><i /><i /><span /></div><div className="setup-art-body"><div className="setup-art-lines"><i /><i /><i /></div><div className="setup-art-frame"><i /><i /><i /><i /><b /></div></div></div><div className="setup-art-toolbar"><ScanLine size={14} /><span /><Keyboard size={14} /><ShieldCheck size={14} /></div><span className="setup-art-size">1280 × 720</span></div><div className="setup-maker"><i />ALGORITHCO<span>{t("setup.local")}</span></div></div>
-      </aside>
+      </aside>}
 
       <main className="setup-main" aria-busy={busy}>
-        <header className="setup-topbar"><div><span>{t("setup.step", { n: index + 1, total: SETUP_STEPS.length })}</span><div className="setup-progress" aria-hidden="true">{SETUP_STEPS.map((item, position) => <i key={item} className={position <= index || complete ? "on" : undefined} />)}</div></div><span className="setup-top-note"><ShieldCheck size={14} />{complete ? t("setup.saved") : t("setup.draftNote")}</span></header>
+        <header className="setup-topbar">{compact && <div className="setup-topbar-brand"><Logo size={22} /><span>Algorith<span>Shot</span></span></div>}<div><span>{t("setup.step", { n: index + 1, total: SETUP_STEPS.length })}</span><div className="setup-progress" aria-hidden="true">{SETUP_STEPS.map((item, position) => <i key={item} className={position <= index || complete ? "on" : undefined} />)}</div></div><span className="setup-top-note"><ShieldCheck size={14} />{complete ? t("setup.saved") : t("setup.draftNote")}</span></header>
 
         <div ref={content} className="setup-content">
           {complete ? <div className="setup-success">

@@ -207,6 +207,18 @@ pub fn copy_color(app: AppHandle, hex: String) -> CmdResult<()> {
     Ok(())
 }
 
+/// Opens the guided setup window (async: it may create a window).
+#[tauri::command]
+pub async fn setup_open(app: AppHandle) -> CmdResult<()> {
+    wm::show_setup(&app).map_err(anyhow_err)
+}
+
+/// Closes the setup window; `open_library` then shows the library.
+#[tauri::command]
+pub async fn setup_finish(app: AppHandle, open_library: bool) -> CmdResult<()> {
+    wm::finish_setup(&app, open_library).map_err(anyhow_err)
+}
+
 #[tauri::command]
 pub fn copy_text(text: String) -> CmdResult<()> {
     clipboard::set_text(&text).map_err(anyhow_err)

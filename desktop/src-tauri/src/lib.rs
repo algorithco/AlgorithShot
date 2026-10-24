@@ -140,7 +140,12 @@ pub fn run() {
             let args: Vec<String> = std::env::args().collect();
             let first_run = st.settings().needs_setup();
             if first_run && !args.iter().any(|a| a == "--hidden") {
-                show_main_later(&handle, "setup");
+                let handle = handle.clone();
+                std::thread::spawn(move || {
+                    if let Err(e) = wm::show_setup(&handle) {
+                        log::warn!("open setup: {e:#}");
+                    }
+                });
             } else {
                 handle_args(&handle, &args, true);
             }
@@ -163,6 +168,8 @@ pub fn run() {
             commands::element_at,
             commands::capture_read_text,
             commands::copy_text,
+            commands::setup_open,
+            commands::setup_finish,
             commands::card_ready,
             commands::card_hide,
             commands::temp_save,
