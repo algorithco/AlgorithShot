@@ -2,6 +2,7 @@
 // normal browser (no Tauri). Served by the Vite dev server under /dev-shot/.
 
 import type { Plugin } from "vite";
+import { previewAppIcon } from "./app-icons.ts";
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -64,7 +65,11 @@ export function fakeShots(): Plugin {
       server.middlewares.use("/dev-shot", (req, res) => {
         const path = (req.url ?? "").split("?")[0].replace(/^\//, "");
         const [kind, id, extra] = path.split("/");
-        const svg = kind === "frame" ? fakeDesktop(1920, 1080) : fakeShot(id + (extra ?? ""), 1600, 1000);
+        const appName = kind === "app-icon"
+          ? new TextDecoder().decode(Uint8Array.from(id.match(/.{2}/g) ?? [], (pair) => parseInt(pair, 16)))
+          : "";
+        const svg = kind === "app-icon" ? previewAppIcon(appName)
+          : kind === "frame" ? fakeDesktop(1920, 1080) : fakeShot(id + (extra ?? ""), 1600, 1000);
         res.setHeader("Content-Type", "image/svg+xml");
         res.setHeader("Access-Control-Allow-Origin", "*");
         res.end(svg);

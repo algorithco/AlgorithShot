@@ -6,6 +6,7 @@
 //! - `/image/{id}` the library file itself
 //! - `/original/{id}` the untouched copy of an edited screenshot
 //! - `/mem/{id}` an image held in memory (pins, unsaved captures) as PNG
+//! - `/app-icon/{hex-name}` a native Windows application icon (PNG)
 
 use std::borrow::Cow;
 use tauri::http::{header, Request, Response, StatusCode};
@@ -25,6 +26,11 @@ fn route(app: &AppHandle, path: &str) -> Response<Cow<'static, [u8]>> {
     let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
     let st = state(app);
     match parts.as_slice() {
+        ["app-icon", name] => match crate::app_icons::name_from_url(name)
+            .and_then(|name| st.app_icons.load(&name).ok()) {
+            Some(png) => ok("image/png", png, false),
+            None => not_found(),
+        },
         ["frame", session, monitor] => {
             let (Ok(session), Ok(monitor)) = (session.parse::<u64>(), monitor.parse::<usize>()) else {
                 return not_found();

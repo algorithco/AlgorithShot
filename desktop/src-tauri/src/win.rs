@@ -19,9 +19,7 @@ use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClassNameW, GetCursorPos, GetWindowLongPtrW,
     GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    SetForegroundWindow, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_RESTORE, SW_SHOWNOACTIVATE, WS_EX_LAYERED,
-    WS_EX_TRANSPARENT,
+    SetForegroundWindow, ShowWindow, GWL_EXSTYLE, SW_RESTORE, WS_EX_LAYERED, WS_EX_TRANSPARENT,
 };
 
 /// A rectangle in physical pixels.
@@ -221,22 +219,26 @@ fn class_name(hwnd: HWND) -> String {
 
 /// The executable name of a process without the `.exe`, e.g. `Telegram`.
 pub fn process_name(pid: u32) -> String {
+    process_path(pid)
+        .and_then(|path| path.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .unwrap_or_default()
+}
+
+/// Full executable path, also used to extract the program's own icon.
+pub fn process_path(pid: u32) -> Option<std::path::PathBuf> {
     unsafe {
         let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
-            return String::new();
+            return None;
         };
         let mut buf = [0u16; 1024];
         let mut len = buf.len() as u32;
         let res = QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len);
         let _ = CloseHandle(handle);
         if res.is_err() {
-            return String::new();
+            return None;
         }
         let path = String::from_utf16_lossy(&buf[..len as usize]);
-        std::path::Path::new(&path)
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default()
+        Some(std::path::PathBuf::from(path))
     }
 }
 
@@ -299,23 +301,6 @@ pub fn disable_transitions(hwnd: isize) {
             DWMWA_TRANSITIONS_FORCEDISABLED,
             &disabled as *const _ as *const _,
             std::mem::size_of::<BOOL>() as u32,
-        );
-    }
-}
-
-/// Shows a window on top without taking focus from the app the user is in.
-pub fn show_topmost_no_activate(hwnd: isize) {
-    unsafe {
-        let hwnd = HWND(hwnd as _);
-        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        let _ = SetWindowPos(
-            hwnd,
-            Some(HWND_TOPMOST),
-            0,
-            0,
-            0,
-            0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
         );
     }
 }

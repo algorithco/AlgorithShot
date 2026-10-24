@@ -53,6 +53,7 @@ export type Settings = {
   autoCleanDays: number;
   sound: boolean;
   welcomeDone: boolean;
+  setupVersion: number;
 };
 
 export type Shot = {
@@ -130,6 +131,10 @@ export function shotUrl(path: string): string {
 
 export const thumbUrl = (s: Shot) => shotUrl(`thumb/${s.id}?v=${s.rev}`);
 export const imageUrl = (s: Shot) => shotUrl(`image/${s.id}?v=${s.rev}`);
+export const appIconUrl = (app: string, revision = 0) => {
+  const name = Array.from(new TextEncoder().encode(app), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return shotUrl(`app-icon/${name}?v=${revision}`);
+};
 
 export const api = {
   getSettings: () => invoke<Settings>("get_settings"),
