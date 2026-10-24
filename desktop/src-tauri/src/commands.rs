@@ -36,19 +36,34 @@ pub async fn save_settings(app: AppHandle, mut settings: Settings) -> CmdResult<
     settings.sanitize();
     let st = state(&app);
     let old = st.settings();
-    settings.save(&st.paths.settings).map_err(anyhow_err)?;
+    let dir = if settings.save_dir.trim().is_empty() { st.paths.default_save_dir.clone() } else { PathBuf::from(settings.save_dir.trim()) };
+    if old.save_dir != settings.save_dir {
+        st.paths.validate_save_dir(&dir).map_err(anyhow_err)?;
+    }
+    if settings.save_all && (old.save_dir != settings.save_dir || !old.save_all || (old.needs_setup() && !settings.needs_setup())) {
+        crate::settings::ensure_capture_dir_writable(&dir).map_err(anyhow_err)?;
+    }
+    use tauri_plugin_autostart::ManagerExt;
+    let set_autostart = |enabled| {
+        let autostart = app.autolaunch();
+        if enabled { autostart.enable() } else { autostart.disable() }
+    };
+    let startup_changed = old.launch_at_login != settings.launch_at_login;
+    if startup_changed {
+        set_autostart(settings.launch_at_login).map_err(|e| format!("Could not change Start with Windows: {e}"))?;
+    }
+    if let Err(e) = settings.save(&st.paths.settings) {
+        if startup_changed {
+            if let Err(rollback) = set_autostart(old.launch_at_login) {
+                log::warn!("restore Start with Windows after failed save: {rollback}");
+            }
+        }
+        return Err(anyhow_err(e));
+    }
     *st.settings.write() = settings.clone();
 
     if old.hotkeys != settings.hotkeys {
         hotkeys::register_all(&app);
-    }
-    if old.launch_at_login != settings.launch_at_login {
-        use tauri_plugin_autostart::ManagerExt;
-        let autostart = app.autolaunch();
-        let res = if settings.launch_at_login { autostart.enable() } else { autostart.disable() };
-        if let Err(e) = res {
-            log::warn!("start with Windows: {e}");
-        }
     }
     if old.save_dir != settings.save_dir {
         crate::watcher::restart(&app);

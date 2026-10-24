@@ -88,6 +88,7 @@ pub fn save_new(app: &AppHandle, img: &RgbaImage, src: &Source) -> Result<Shot> 
     let st = state(app);
     let settings = st.settings();
     let dir = st.save_dir();
+    st.paths.validate_save_dir(&dir)?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
     let format = Format::parse(&settings.format);
@@ -113,6 +114,12 @@ pub fn save_new(app: &AppHandle, img: &RgbaImage, src: &Source) -> Result<Shot> 
         title: src.title.clone(),
         url: src.url.clone(),
     })?;
+    // Keep the source icon while its window/executable is still available.
+    if !src.app.is_empty() {
+        if let Err(error) = st.app_icons.remember(&src.app, src.hwnd) {
+            log::debug!("source app icon: {error:#}");
+        }
+    }
     after_change(app, &shot.id, format == Format::Png);
     Ok(shot)
 }
@@ -288,7 +295,9 @@ pub fn save_edit(app: &AppHandle, id: &str, img: &RgbaImage, format: Format, qua
     let st = state(app);
     let shot = st.library.get(id)?.ok_or_else(|| anyhow!("not found"))?;
     let path = PathBuf::from(&shot.path);
+    st.paths.validate_save_dir(&path)?;
     if original_path(app, id).is_none() && path.exists() {
+        crate::storage::validate_save_dir(&st.paths.originals, &st.paths.private_dirs)?;
         std::fs::create_dir_all(&st.paths.originals)?;
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
         std::fs::copy(&path, st.paths.originals.join(format!("{id}.{ext}")))?;
@@ -315,6 +324,7 @@ pub fn revert(app: &AppHandle, id: &str) -> Result<Shot> {
     let current = PathBuf::from(&shot.path);
     let ext = orig.extension().and_then(|e| e.to_str()).unwrap_or("png");
     let target = current.with_extension(ext);
+    st.paths.validate_save_dir(&target)?;
     st.note_write(current.clone());
     st.note_write(target.clone());
     std::fs::copy(&orig, &target)?;

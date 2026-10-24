@@ -428,6 +428,7 @@ pub fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
         .add_filter("WebP", &["webp"])
         .blocking_save_file();
     let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(()) };
+    state(app).paths.validate_save_dir(&path)?;
     let format = imaging::Format::from_path(&path);
     let quality = match format {
         imaging::Format::Jpeg => state(app).settings().jpeg_quality,

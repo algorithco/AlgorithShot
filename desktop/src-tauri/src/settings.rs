@@ -5,6 +5,8 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+pub const SETUP_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Hotkeys {
@@ -85,6 +87,8 @@ pub struct Settings {
     pub auto_clean_days: u32,
     pub sound: bool,
     pub welcome_done: bool,
+    /// Version of the full setup completed by the user; 0 includes old welcome-only files.
+    pub setup_version: u32,
 }
 
 impl Default for Settings {
@@ -111,11 +115,16 @@ impl Default for Settings {
             auto_clean_days: 0,
             sound: false,
             welcome_done: false,
+            setup_version: 0,
         }
     }
 }
 
 impl Settings {
+    pub fn needs_setup(&self) -> bool {
+        self.setup_version < SETUP_VERSION
+    }
+
     pub fn load(path: &Path) -> Settings {
         let parsed = std::fs::read(path).ok().and_then(|data| serde_json::from_slice::<Settings>(&data).ok());
         let mut s = parsed.unwrap_or_default();
@@ -168,6 +177,19 @@ impl Settings {
     }
 }
 
+/// A removed-on-success write probe catches inaccessible destinations before
+/// the setup completion marker and choices are committed.
+pub fn ensure_capture_dir_writable(path: &Path) -> Result<()> {
+    use anyhow::Context;
+    std::fs::create_dir_all(path).with_context(|| format!("opening screenshot folder {}", path.display()))?;
+    let probe_path = path.join(format!(".algorithshot-write-check-{}", uuid::Uuid::new_v4()));
+    let probe = std::fs::OpenOptions::new().write(true).create_new(true).open(&probe_path)
+        .with_context(|| format!("Screenshot folder is not writable: {}", path.display()))?;
+    drop(probe);
+    std::fs::remove_file(&probe_path).context("removing screenshot folder write check")?;
+    Ok(())
+}
+
 fn sys_locale() -> String {
     use windows::Win32::Globalization::GetUserDefaultLocaleName;
     let mut buf = [0u16; 85];
@@ -202,5 +224,39 @@ mod tests {
     fn bindings_skip_empty() {
         let h = Hotkeys { capture_alt: String::new(), text: "Ctrl+Alt+T".into(), ..Default::default() };
         assert_eq!(h.bindings(), vec![("capture", "PrintScreen"), ("text", "Ctrl+Alt+T")]);
+    }
+
+    #[test]
+    fn old_welcome_does_not_skip_full_setup() {
+        let settings: Settings = serde_json::from_str(r#"{"welcomeDone":true,"format":"webp"}"#).unwrap();
+        assert!(settings.welcome_done);
+        assert!(settings.needs_setup());
+        assert_eq!(settings.format, "webp");
+    }
+
+    #[test]
+    fn completed_setup_and_choices_survive_a_reload() {
+        let root = std::env::temp_dir().join(format!("algorithshot-setup-{}", uuid::Uuid::new_v4()));
+        let path = root.join("settings.json");
+        let settings = Settings { setup_version: SETUP_VERSION, welcome_done: true, language: "uz".into(), format: "webp".into(), webp_quality: 73, ..Default::default() };
+        settings.save(&path).unwrap();
+        let loaded = Settings::load(&path);
+        assert_eq!(loaded, settings);
+        assert!(!loaded.needs_setup());
+        std::fs::remove_file(&path).unwrap();
+        std::fs::remove_dir(&root).unwrap();
+    }
+
+    #[test]
+    fn destination_write_check_leaves_no_probe_files() {
+        let root = std::env::temp_dir().join(format!("algorithshot-folder-check-{}", uuid::Uuid::new_v4()));
+        ensure_capture_dir_writable(&root).unwrap();
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        let user_file = root.join("existing-image.png");
+        std::fs::write(&user_file, b"existing bytes").unwrap();
+        assert!(ensure_capture_dir_writable(&user_file).is_err());
+        assert_eq!(std::fs::read(&user_file).unwrap(), b"existing bytes");
+        std::fs::remove_file(&user_file).unwrap();
+        std::fs::remove_dir(&root).unwrap();
     }
 }

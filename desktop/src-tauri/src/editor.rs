@@ -180,6 +180,7 @@ pub async fn editor_save_as(app: AppHandle, request: Request<'_>) -> CmdResult<O
         .add_filter("WebP", &["webp"])
         .blocking_save_file();
     let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None) };
+    state(&app).paths.validate_save_dir(&path).map_err(fail)?;
     let mut args = args;
     args["format"] = Value::String(Format::from_path(&path).ext().to_string());
     let (data, _, _) = encode_with(&img, &args).map_err(fail)?;
