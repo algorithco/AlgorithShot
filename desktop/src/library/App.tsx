@@ -146,9 +146,7 @@ export function App() {
         <div className="setup-backdrop">
           <div className="setup-popup" role="dialog" aria-modal="true" aria-label={t("setup.reopen")}>
             <SetupPage
-              compact
               onDone={() => closeSetup("library")}
-              onAfterCapture={() => closeSetup("library")}
               onCancel={!needsSetup(settings) ? () => closeSetup("settings") : undefined}
             />
           </div>

@@ -29,12 +29,7 @@ export const en = {
   "startup.footer": "Capture. Refine. Share.",
   "startup.local": "On your device",
 
-  "setup.eyebrow": "A place for every detail",
-  "setup.railTitle": "Your space.\nYour way.",
-  "setup.railSubtitle": "A few thoughtful choices for the way you capture.",
-  "setup.navigation": "Setup steps",
   "setup.step": "Step {n} of {total}",
-  "setup.local": "Made for your desktop",
   "setup.draftNote": "Your choices apply when you finish",
   "setup.personalize.nav": "Make it yours",
   "setup.personalize.title": "A little more you.",

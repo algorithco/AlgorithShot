@@ -30,12 +30,7 @@ export const uz: Record<Key, string> = {
   "startup.footer": "Tasvirga oling. Tahrirlang. Ulashing.",
   "startup.local": "Qurilmangizda",
 
-  "setup.eyebrow": "Har bir tafsilot oʻz oʻrnida",
-  "setup.railTitle": "Sizga mos.\nHar jihatdan.",
-  "setup.railSubtitle": "Tasvirga olishni qulay qiladigan bir nechta tanlov.",
-  "setup.navigation": "Sozlash bosqichlari",
   "setup.step": "{total} bosqichdan {n}-si",
-  "setup.local": "Kompyuteringiz uchun",
   "setup.draftNote": "Tanlovlar yakunlaganingizda saqlanadi",
   "setup.personalize.nav": "Oʻzingizga moslang",
   "setup.personalize.title": "Keling, sizga moslaymiz.",

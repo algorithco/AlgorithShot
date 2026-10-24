@@ -30,12 +30,7 @@ export const ru: Record<Key, string> = {
   "startup.footer": "Снимайте. Улучшайте. Делитесь.",
   "startup.local": "На вашем устройстве",
 
-  "setup.eyebrow": "Внимание к каждой детали",
-  "setup.railTitle": "Ваше место.\nВаши правила.",
-  "setup.railSubtitle": "Несколько решений для удобной работы со снимками.",
-  "setup.navigation": "Шаги настройки",
   "setup.step": "Шаг {n} из {total}",
-  "setup.local": "Для вашего компьютера",
   "setup.draftNote": "Изменения применятся после завершения",
   "setup.personalize.nav": "Под себя",
   "setup.personalize.title": "Добавим немного вас.",
