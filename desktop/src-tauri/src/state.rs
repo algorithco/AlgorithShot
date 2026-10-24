@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
+use crate::app_icons::AppIcons;
 use crate::capture::CaptureState;
 use crate::jobs::Jobs;
 use crate::library::Library;
@@ -20,7 +21,10 @@ pub struct Paths {
     pub thumbs: PathBuf,
     /// Untouched copies of screenshots that were edited, named `{id}.{ext}`.
     pub originals: PathBuf,
+    pub legacy_originals: PathBuf,
     pub default_save_dir: PathBuf,
+    /// Folders removed by uninstallers or temporary-file clean-up.
+    pub private_dirs: Vec<PathBuf>,
 }
 
 impl Paths {
@@ -33,14 +37,26 @@ impl Paths {
         // When Pictures lives in OneDrive, screenshots there would be copied
         // to the cloud. The default stays on this PC instead.
         let pictures = if is_cloud_synced(&pictures) { home.join("Pictures") } else { pictures };
+        // Screenshots made before the rename stay where they are.
+        let default_save_dir = if pictures.join("Algorithco Shot").is_dir() { pictures.join("Algorithco Shot") } else { pictures.join("AlgorithShot") };
+        let config = p.app_config_dir()?;
+        let mut private_dirs = vec![data.clone(), cache.clone(), config.clone(), p.app_local_data_dir()?, std::env::temp_dir()];
+        if let Some(install_dir) = std::env::current_exe()?.parent() {
+            private_dirs.push(install_dir.to_path_buf());
+        }
         Ok(Paths {
-            settings: p.app_config_dir()?.join("settings.json"),
+            settings: config.join("settings.json"),
             database: data.join("library.db"),
             thumbs: cache.join("thumbs"),
-            originals: data.join("originals"),
-            // Screenshots made before the rename stay where they are.
-            default_save_dir: if pictures.join("Algorithco Shot").is_dir() { pictures.join("Algorithco Shot") } else { pictures.join("AlgorithShot") },
+            originals: default_save_dir.join(".originals"),
+            legacy_originals: data.join("originals"),
+            default_save_dir,
+            private_dirs,
         })
+    }
+
+    pub fn validate_save_dir(&self, dir: &std::path::Path) -> anyhow::Result<()> {
+        crate::storage::validate_save_dir(dir, self.private_dirs.iter().chain(std::iter::once(&self.originals)))
     }
 }
 
@@ -68,6 +84,7 @@ pub struct Deleted {
 
 pub struct AppState {
     pub paths: Paths,
+    pub app_icons: AppIcons,
     pub settings: RwLock<Settings>,
     pub library: Library,
     pub capture: CaptureState,
@@ -84,6 +101,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(paths: Paths, settings: Settings, library: Library, jobs: Jobs) -> AppState {
         AppState {
+            app_icons: AppIcons::new(paths.database.with_file_name("app-icons")),
             paths,
             settings: RwLock::new(settings),
             library,

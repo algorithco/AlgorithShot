@@ -56,6 +56,8 @@ strip = true
 tauri-plugin-autostart = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "~2.11.0"
+tauri-plugin-process = "~2.3.1"
 
 [dev-dependencies]
 qrcode = { version = "0.14.1", default-features = false, features = ["image"] }

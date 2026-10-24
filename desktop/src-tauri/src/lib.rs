@@ -1,6 +1,7 @@
 //! AlgorithShot: a screenshot app that captures exactly what you need,
 //! finds it again, and helps you share it safely.
 
+mod app_icons;
 mod capture;
 mod card;
 mod clipboard;
@@ -17,6 +18,7 @@ mod settings;
 mod shots;
 mod smart;
 mod state;
+mod storage;
 mod tray;
 mod watcher;
 mod win;
@@ -79,6 +81,12 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(option_env!("TAURI_UPDATER_PUBLIC_KEY").unwrap_or_default().trim())
+                .build(),
+        )
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::Builder::new().args(["--hidden"]).build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_drag::init())
@@ -86,8 +94,9 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let paths = Paths::resolve(&handle)?;
-            let settings = Settings::load(&paths.settings);
+            let mut settings = Settings::load(&paths.settings);
             let library = Library::open(&paths.database)?;
+            storage::prepare(&paths, &mut settings, &library)?;
             app.manage(AppState::new(paths, settings, library, Jobs::new()));
 
             let st = state::state(&handle);
@@ -115,9 +124,9 @@ pub fn run() {
             });
 
             let args: Vec<String> = std::env::args().collect();
-            let first_run = !st.settings().welcome_done;
+            let first_run = st.settings().needs_setup();
             if first_run && !args.iter().any(|a| a == "--hidden") {
-                show_main_later(&handle, "welcome");
+                show_main_later(&handle, "setup");
             } else {
                 handle_args(&handle, &args, true);
             }
