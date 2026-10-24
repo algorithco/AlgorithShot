@@ -11,6 +11,17 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
+
+# Local service configuration; keep the documented example in Git.
+.env
+.env.*
+!.env.example
+
+# Private updater signing keys must stay outside Git.
+.local/
+*.key
+*.key.pub
 
 # Editor directories and files
 .vscode/*

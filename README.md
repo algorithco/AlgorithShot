@@ -1,73 +1,67 @@
 # AlgorithShot
 
-A Windows screenshot app that captures exactly what you need, finds it again in
-seconds, and helps you share it safely. Free, offline, in English, Uzbek and
-Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
+AlgorithShot contains a Windows screenshot desktop app and a separate HTTP API.
 
-## What it does
+```text
+algorithco-shot/
+  desktop/              React + TypeScript UI and Tauri/Rust desktop app
+    src/                Library, overlay, editor, quick card and pinned shots
+    src-tauri/          Windows capture, OCR, SQLite library and installer
+    dev/                Browser fixtures and installer development tools
+    scripts/            Signed desktop release tooling
+    docs/               Desktop product, setup and update documentation
+  shot-api/             TypeScript + Fastify backend
+    src/                Application, configuration and server entry point
+    test/               HTTP and configuration tests
+  .github/workflows/    Checks for both projects
+  pnpm-workspace.yaml  Workspace packages
+  pnpm-lock.yaml       Shared dependency lockfile
+```
 
-- **Capture**: one hotkey (Print Screen, or Ctrl+Shift+Print Screen) freezes the
-  screen. Drag a region, click a window or a part of it (buttons, panels,
-  messages via UI Automation), capture the full screen or a fixed size, or use a
-  timer. Letting go copies the capture at once; hold Ctrl to adjust it first
-  with the live size in real pixels, arrow-key nudging and typed sizes.
-- **Screen tools**: copy text from anything on screen (Windows OCR): the screen
-  stays frozen and you pick the words right there. Scan QR codes and barcodes,
-  pick colours, measure with the ruler, pin a capture on top.
-- **Quick card** after each capture: edit, save as, pin, send to Telegram, copy,
-  show in folder, delete, or drag the image straight into another app.
-- **Editor**: crop, erase, remove & fill, cut out a strip, hide (pixelate, blur,
-  solid), arrows, boxes, highlighter, text, numbered steps, perfect sizes and
-  presets, "keep under N KB", and a privacy check that hides emails, phone
-  numbers, cards, IDs, keys and faces in one go.
-- **Library**: every screenshot, searchable by the text inside it, the app, the
-  window title or website and the date (Latin and Cyrillic both match). Delete
-  goes to the Recycle Bin with undo; the clean-up page finds duplicates and
-  old or large files.
+The desktop app captures, edits, indexes and searches screenshots locally. The API
+runs as a separate process and can be deployed independently. Its initial endpoints
+provide service information and health checks. Accounts, uploads and cloud sync
+are not implemented yet; starting the API does not upload desktop screenshots.
 
-Nothing is uploaded. Screenshots are saved to `Pictures\AlgorithShot`
-(or `%USERPROFILE%\Pictures\AlgorithShot` when Pictures is in OneDrive).
+## Development
 
-## Develop
+Use Node 24.13+ and pnpm 10.29.3. Desktop builds also need Rust (MSVC) and the
+Visual Studio C++ build tools on Windows. Backend development only needs Node
+and pnpm.
 
-Needs Node 20+, pnpm, Rust (MSVC) and the Visual Studio C++ build tools.
+From the repository root:
 
 ```bash
-pnpm install
-pnpm tauri dev        # run the app
-pnpm dev              # pages only, in a browser, with fake data (src/dev/mock.ts)
-pnpm test             # frontend tests
-cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust tests, incl. Windows OCR and a real screen grab
-pnpm tauri build      # Windows installer in src-tauri/target/release/bundle/nsis
+pnpm install --frozen-lockfile
+pnpm desktop:dev       # Tauri desktop app
+pnpm dev               # desktop pages in a browser, with local fake data
+pnpm api:dev           # API on http://127.0.0.1:3000, with watch mode
 ```
 
-CI (`.github/workflows/ci.yml`) runs the same checks on every pull request,
-except the tests that need a real screen or Windows' OCR languages.
+Run the desktop and API in separate terminals when both are needed. Individual
+package commands also work inside `desktop/` and `shot-api/`.
 
-Command-line actions (also sent to the running app): `--capture [mode]`,
-`--text`, `--qr`, `--library`, `--settings`, `--hidden`.
+The API's [Swagger UI](http://localhost:3000/docs/) lists the endpoints, request
+and response schemas, and lets you send requests with **Try it out**. The
+[OpenAPI schema](http://localhost:3000/openapi.json) is available as JSON.
 
-## Layout
-
+```bash
+pnpm typecheck         # both projects
+pnpm test              # desktop and API tests
+pnpm test:release      # desktop release metadata checks
+pnpm build             # desktop frontend and API production builds
+pnpm api:start         # start the built API
+pnpm release:build     # signed Windows desktop installer
+cargo test --manifest-path desktop/src-tauri/Cargo.toml --lib
 ```
-src-tauri/src/
-  capture.rs   screen grab, capture sessions, what happens after a capture
-  win.rs       monitors, windows, DPI (Win32)
-  imaging.rs   crop, encode, optimize, resize, fit, smart fill
-  library.rs   SQLite index and full-text search
-  shots.rs     saving, naming, Recycle Bin delete and undo, edits, clean-up
-  smart/       OCR, privacy shield, QR, faces, UI Automation, fingerprints
-  editor.rs    editor commands (raw pixel transfer)
-  protocol.rs  shot:// protocol for frames, thumbnails and images
-  wm.rs, tray.rs, hotkeys.rs, card.rs, pins.rs, clipboard.rs, watcher.rs
-src/
-  overlay/     capture overlay (canvas engine + toolbar)
-  card/        quick card
-  editor/      editor (document model, renderer, stage, panels)
-  library/     library, clean-up, settings, welcome
-  pin/         pinned screenshots
-  shared/      API types, translations (en, uz, ru), styles, UI pieces
-```
+
+`pnpm tauri dev` remains available from the repository root. `pnpm build` builds
+the desktop frontend; a native Windows installer is built with `pnpm release:build`.
+
+See [desktop documentation](desktop/README.md) for app features and local storage,
+[update publishing](desktop/docs/UPDATES.md) for signed releases, and
+[API documentation](shot-api/README.md) for endpoints, configuration and language
+tradeoffs.
 
 ## License
 

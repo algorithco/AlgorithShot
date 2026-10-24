@@ -1,4 +1,4 @@
-# The pages are checked on Linux. The Rust core calls Windows APIs and only
+# The pages and API are checked on Linux. The Rust core calls Windows APIs and only
 # builds on Windows, so that one job runs there (private repositories count
 # Windows minutes double).
 # Immutable action commits correspond to these official releases:
@@ -38,6 +38,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm test:release
       - run: pnpm build
 
   core:
@@ -54,18 +55,20 @@ jobs:
           cache: pnpm
       # The app embeds the built pages.
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - run: pnpm desktop:build
       - name: Install Rust 1.98.1
         run: |
           rustup toolchain install 1.98.1 --profile minimal --no-self-update
           rustup default 1.98.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: src-tauri -> target
+          workspaces: desktop/src-tauri -> target
       - name: Test
-        working-directory: src-tauri
+        working-directory: desktop/src-tauri
         # Tests that need a real screen or Windows' OCR languages run on a PC only.
         run: cargo test --lib --locked -- --skip live_tests --skip grabs_the_main_monitor
+      - name: Check native installer UI
+        run: powershell -NoProfile -File desktop/dev/build-installer-ui.ps1
 
   audit:
     runs-on: ubuntu-latest

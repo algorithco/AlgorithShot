@@ -1,0 +1,44 @@
+/** Release metadata shared by the local build script and its checks. */
+export function validateRelease({ config, packageVersion, cargoVersion, env }) {
+  const version = config.version;
+  if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw new Error("Use a stable major.minor.patch release version.");
+  if (version !== packageVersion || version !== cargoVersion) {
+    throw new Error("Versions must match in package.json, src-tauri/Cargo.toml and src-tauri/tauri.conf.json.");
+  }
+  if (!env.TAURI_UPDATER_PUBLIC_KEY?.trim()) throw new Error("Set TAURI_UPDATER_PUBLIC_KEY to the public signing key. See docs/UPDATES.md.");
+  if (!env.TAURI_SIGNING_PRIVATE_KEY?.trim()) throw new Error("Set TAURI_SIGNING_PRIVATE_KEY before building a release. See docs/UPDATES.md.");
+  const trustedKey = config.plugins?.updater?.pubkey?.trim();
+  if (trustedKey && trustedKey !== env.TAURI_UPDATER_PUBLIC_KEY.trim()) {
+    throw new Error("TAURI_UPDATER_PUBLIC_KEY must match the trusted public key in tauri.conf.json.");
+  }
+
+  const endpoint = config.plugins?.updater?.endpoints?.[0];
+  const repository = /^https:\/\/github\.com\/([^/]+\/[^/]+)\/releases\/latest\/download\/latest\.json$/.exec(endpoint)?.[1];
+  if (!repository) throw new Error("Configure the public GitHub latest.json endpoint in tauri.conf.json.");
+  return { version, tag: `v${version}`, repository };
+}
+
+/** Tauri's bundler must see the same public key embedded by the Rust plugin. */
+export function updaterBuildConfig(publicKey) {
+  return {
+    bundle: { createUpdaterArtifacts: true },
+    plugins: { updater: { pubkey: publicKey.trim() } },
+  };
+}
+
+export function createUpdateManifest({ version, tag, repository }, installerName, signature) {
+  if (!signature.trim()) throw new Error("The installer signature is empty.");
+  if (!installerName.endsWith(`_${version}_x64-setup.exe`)) {
+    throw new Error("Expected the Windows x64 NSIS installer for this version.");
+  }
+  return {
+    version,
+    pub_date: new Date().toISOString(),
+    platforms: {
+      "windows-x86_64": {
+        signature: signature.trim(),
+        url: `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(installerName)}`,
+      },
+    },
+  };
+}
