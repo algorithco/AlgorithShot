@@ -60,6 +60,7 @@ export function App() {
 
   if (!settings) return null;
   // The guided setup is a popup over the app: on first run and from Settings.
+  // While it is open, the app behind it is inert, so focus stays in the popup.
   const setupOpen = setupActive || needsSetup(settings) || page === "setup";
   // Behind the popup: Settings when it was opened from there, else the library.
   const behind: Page = page === "setup" ? (needsSetup(settings) ? "library" : "settings") : page;
@@ -89,7 +90,7 @@ export function App() {
 
   return (
     <div className={`shell${collapsed ? " collapsed" : ""}`}>
-      <aside className="sidebar">
+      <aside className="sidebar" inert={setupOpen}>
         <div className="brand">
           <Logo size={26} />
           <span className="display brand-name">{t("app.name")}</span>
@@ -136,7 +137,7 @@ export function App() {
         </div>
       </aside>
 
-      <main className="main">
+      <main className="main" inert={setupOpen}>
         {behind === "library" && <LibraryPage />}
         {behind === "cleanup" && <CleanupPage />}
         {behind === "settings" && <SettingsPage />}
