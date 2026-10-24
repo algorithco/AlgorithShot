@@ -57,8 +57,17 @@ Private keys are used only by Tauri's signing step and never embedded in the app
    update banner. Drafts and prereleases do not become the `latest` feed.
 
 The local build command prepares files only; it does not publish a release.
-It validates version consistency, the feed repository, and the signature file
-before producing a manifest.
+It validates version consistency and the feed repository, then compiles the app
+and runs `algorithco-shot.exe --verify-assets` before bundling. This checks all
+five embedded pages and decompresses every bundled asset without opening windows
+or accessing user data. Missing or corrupt assets stop the release. The signature
+file is checked before producing a manifest.
+
+The Rust build recreates its generated asset cache when the frontend changes, so
+damaged cached files cannot silently survive a rebuild. If an existing installer
+shows `asset not found: index.html`, rebuild with `pnpm release:build` and install
+the verified replacement; copying `dist` beside the installed executable does
+not repair its embedded assets.
 
 The first version containing the updater must be installed manually by existing
 users. Versions without an updater cannot discover it on their own.
