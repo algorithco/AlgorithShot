@@ -1,16 +1,13 @@
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createRoot } from "react-dom/client";
 import "../shared/base.css";
 import "./library.css";
-import { App, SetupWindow } from "./App";
+import { App } from "./App";
 import { StartupBoundary } from "./StartupBoundary";
 import { UpdateFrame } from "./UpdateBanner";
 import { startUpdateChecks } from "./updates";
 
 const desktop = "__TAURI_INTERNALS__" in window;
-// The setup popup shows only the guided setup: no loading screen, updates or library.
-const setupWindow = desktop ? getCurrentWindow().label === "setup" : import.meta.env.DEV && new URLSearchParams(location.search).has("setup-window");
-if (desktop && !import.meta.env.DEV && !setupWindow) {
+if (desktop && !import.meta.env.DEV) {
   const stop = startUpdateChecks();
   import.meta.hot?.dispose(stop);
 }
@@ -36,10 +33,6 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has("loading-pre
   }
   const { LoadingPreview } = await import("../dev/LoadingPreview");
   root.render(<LoadingPreview />);
-} else if (setupWindow) {
-  const { initSettings } = await import("../shared/settings");
-  await initSettings();
-  root.render(<SetupWindow />);
 } else {
   root.render(<StartupBoundary><UpdateFrame><App /></UpdateFrame></StartupBoundary>);
 }

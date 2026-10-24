@@ -144,40 +144,6 @@ pub fn show_main(app: &AppHandle, page: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-/// The guided setup in a small window of its own: on first run, and from
-/// Settings. The library stays closed (or where it was) behind it.
-pub fn show_setup(app: &AppHandle) -> Result<()> {
-    if let Some(w) = app.get_webview_window("setup") {
-        if w.is_minimized().unwrap_or(false) {
-            w.unminimize()?;
-        }
-        w.show()?;
-        w.set_focus()?;
-        return Ok(());
-    }
-    WebviewWindowBuilder::new(app, "setup", WebviewUrl::App("index.html#setup".into()))
-        .title("AlgorithShot")
-        .background_color(tauri::window::Color(17, 17, 17, 255))
-        .inner_size(800.0, 640.0)
-        .resizable(false)
-        .maximizable(false)
-        .center()
-        .visible(true)
-        .build()?;
-    Ok(())
-}
-
-/// Closes the setup window, and opens the library when asked.
-pub fn finish_setup(app: &AppHandle, open_library: bool) -> Result<()> {
-    if let Some(w) = app.get_webview_window("setup") {
-        w.close()?;
-    }
-    if open_library {
-        show_main(app, Some("library"))?;
-    }
-    Ok(())
-}
-
 /// Opens an editor for `shot:{id}` or `temp:{id}`. One window per image.
 pub fn open_editor(app: &AppHandle, target: &str) -> Result<()> {
     open_editor_with(app, target, None)

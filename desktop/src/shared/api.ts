@@ -159,9 +159,6 @@ export const api = {
   readScreenText: (sessionId: number, monitorId: number, rect: Rect) =>
     invoke<TextLine[]>("capture_read_text", { sessionId, monitorId, rect }),
   copyText: (text: string) => invoke<void>("copy_text", { text }),
-  /** The guided setup, in its own small window. */
-  setupOpen: () => invoke<void>("setup_open"),
-  setupFinish: (openLibrary: boolean) => invoke<void>("setup_finish", { openLibrary }),
 
   cardReady: (width: number, height: number) => invoke<void>("card_ready", { width, height }),
   cardHide: () => invoke<void>("card_hide"),

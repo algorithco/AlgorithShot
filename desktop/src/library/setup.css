@@ -321,7 +321,14 @@
   .setup-footer-caption { max-width: 130px; font-size: 9px; }
   .setup-primary { gap: 10px; padding: 0 13px; font-size: 11px; }
 }
-/* The setup window: a small popup without the side rail. The brand and the
+/* The popup over the app that holds the guided setup. Closing is only
+   through its own buttons, never a click outside. */
+.setup-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(10, 10, 10, 0.55); backdrop-filter: blur(3px); animation: setup-fade 160ms ease-out both; }
+.setup-popup { width: min(800px, 100%); height: min(640px, 100%); overflow: hidden; border: 1px solid var(--line-strong); border-radius: 14px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45), 0 4px 14px rgba(0, 0, 0, 0.25); animation: setup-enter 200ms ease-out both; }
+.setup-popup .setup-shell { height: 100%; }
+@keyframes setup-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* The popup layout: no side rail. The brand and the
    step progress share one top bar; headings and spacing are tighter. */
 .setup-shell.compact { grid-template-columns: minmax(0, 1fr); }
 .setup-shell.compact .setup-topbar { min-height: 0; padding: 14px 26px; gap: 16px; }
