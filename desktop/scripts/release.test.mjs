@@ -6,7 +6,7 @@ function options() {
   return {
     config: {
       version: "0.2.0",
-      plugins: { updater: { endpoints: ["https://github.com/algorithco/algorith-shot/releases/latest/download/latest.json"] } },
+      plugins: { updater: { endpoints: ["https://github.com/algorithco/algorith-shot-releases/releases/latest/download/latest.json"] } },
     },
     packageVersion: "0.2.0",
     cargoVersion: "0.2.0",
@@ -51,7 +51,7 @@ test("the public feed determines which repository owns installer URLs", () => {
   const input = options();
   input.config.plugins.updater.endpoints[0] = "https://example.com/latest.json";
   assert.throws(() => validateRelease(input), /public GitHub/);
-  assert.deepEqual(validateRelease(options()), { version: "0.2.0", tag: "v0.2.0", repository: "algorithco/algorith-shot" });
+  assert.deepEqual(validateRelease(options()), { version: "0.2.0", tag: "v0.2.0", repository: "algorithco/algorith-shot-releases" });
 });
 
 test("the manifest contains a signature and an exact versioned download URL", () => {
@@ -59,7 +59,7 @@ test("the manifest contains a signature and an exact versioned download URL", ()
   assert.equal(manifest.version, "0.2.0");
   assert.deepEqual(manifest.platforms["windows-x86_64"], {
     signature: "signature-content",
-    url: "https://github.com/algorithco/algorith-shot/releases/download/v0.2.0/AlgorithShot_0.2.0_x64-setup.exe",
+    url: "https://github.com/algorithco/algorith-shot-releases/releases/download/v0.2.0/AlgorithShot_0.2.0_x64-setup.exe",
   });
   assert.ok(Number.isFinite(Date.parse(manifest.pub_date)));
 });

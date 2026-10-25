@@ -11,13 +11,14 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/algorithco/algorith-shot-releases/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/algorithco/algorith-shot-releases?label=release&labelColor=111111&color=ffd300"></a>
   <a href="https://github.com/algorithco/algorith-shot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/algorithco/algorith-shot/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-111111">
   <a href="LICENSE"><img alt="License: all rights reserved" src="https://img.shields.io/badge/license-all%20rights%20reserved-111111"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/algorithco/algorith-shot/releases/latest"><b>Download</b></a> ·
+  <a href="https://github.com/algorithco/algorith-shot-releases/releases/latest"><b>Download</b></a> ·
   <a href="desktop/README.md">Desktop guide</a> ·
   <a href="shot-api/README.md">API</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -44,9 +45,11 @@
 ## Download
 
 Download `AlgorithShot_<version>_x64-setup.exe` from the
-[latest release](https://github.com/algorithco/algorith-shot/releases/latest)
-and run it. The [Releases](https://github.com/algorithco/algorith-shot/releases)
-page has notes for every version.
+[latest release](https://github.com/algorithco/algorith-shot-releases/releases/latest)
+and run it. The [Releases](https://github.com/algorithco/algorith-shot-releases/releases)
+page has notes for every version. Installers and the update feed are published
+in the public [algorith-shot-releases](https://github.com/algorithco/algorith-shot-releases)
+repository, and the source code stays private.
 
 ## Repository
 
