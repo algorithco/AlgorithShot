@@ -11,13 +11,18 @@ and when the connection comes back. Offline checks do not block the app. Failed
 downloads or installations leave a retry button. Checking never installs anything
 without a click. Development builds do not contact the update endpoint.
 
-The update feed is:
-`https://github.com/algorithco/algorith-shot/releases/latest/download/latest.json`.
-Both the manifest and installer assets must be publicly readable. While this
-repository is private they are not, so installed apps cannot find or download
-updates. To restore updates, publish releases in a public repository and point
-the updater endpoint in `src-tauri/tauri.conf.json` there. The release script
-builds the installer URLs from that endpoint.
+Releases are published in the public
+[algorithco/algorith-shot-releases](https://github.com/algorithco/algorith-shot-releases)
+repository. That repository holds only the installers and the update feed; this
+repository and its source code stay private. The update feed is:
+`https://github.com/algorithco/algorith-shot-releases/releases/latest/download/latest.json`.
+Both the manifest and installer assets must be publicly readable. The release
+script builds the installer URLs from the updater endpoint in
+`src-tauri/tauri.conf.json`.
+
+Versions 0.1.0 and 0.1.1 check an older feed in this private repository, so
+they cannot see newer versions. Their users need to install 0.1.2 or later by
+hand once.
 
 ## Signing setup
 
@@ -55,8 +60,9 @@ Private keys are used only by Tauri's signing step and never embedded in the app
    `src-tauri/tauri.conf.json`. Refresh `src-tauri/Cargo.lock` with `cargo check`.
 2. Run the checks below, set the signing variables, and run `pnpm release:build`.
 3. The NSIS folder contains the versioned `.exe`, its `.sig`, and `latest.json`.
-   Review them, then manually attach all three to a public GitHub release with
-   the matching tag, for example `v0.2.0`.
+   Review them, then attach all three to a GitHub release in
+   `algorithco/algorith-shot-releases` with the matching tag, for example
+   `v0.2.0`. Tag the source commit in this repository with the same tag.
 4. Publish it as a stable release. Installed older versions will then show the
    update banner. Drafts and prereleases do not become the `latest` feed.
 

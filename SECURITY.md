@@ -4,7 +4,7 @@
 
 Only the latest release of the AlgorithShot desktop app gets security fixes.
 Please check that you are on the
-[latest release](https://github.com/algorithco/algorith-shot/releases/latest)
+[latest release](https://github.com/algorithco/algorith-shot-releases/releases/latest)
 before you report a problem.
 
 | Version | Supported |
