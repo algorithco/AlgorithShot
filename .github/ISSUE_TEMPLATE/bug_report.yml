@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for reporting this. Please remove private data from screenshots and logs.
-        Report security problems with the [private form](https://github.com/algorithco/algorith-shot/security/advisories/new) instead.
+        Email security problems instead, as described in [SECURITY.md](https://github.com/algorithco/algorith-shot/blob/main/SECURITY.md).
   - type: input
     id: version
     attributes:

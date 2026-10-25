@@ -11,9 +11,13 @@ and when the connection comes back. Offline checks do not block the app. Failed
 downloads or installations leave a retry button. Checking never installs anything
 without a click. Development builds do not contact the update endpoint.
 
-The public update feed is:
+The update feed is:
 `https://github.com/algorithco/algorith-shot/releases/latest/download/latest.json`.
-Both the manifest and installer assets must be publicly readable.
+Both the manifest and installer assets must be publicly readable. While this
+repository is private they are not, so installed apps cannot find or download
+updates. To restore updates, publish releases in a public repository and point
+the updater endpoint in `src-tauri/tauri.conf.json` there. The release script
+builds the installer URLs from that endpoint.
 
 ## Signing setup
 
