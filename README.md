@@ -11,7 +11,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/algorithco/algorith-shot/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/algorithco/algorith-shot?label=release&labelColor=111111&color=ffd300"></a>
   <a href="https://github.com/algorithco/algorith-shot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/algorithco/algorith-shot/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-111111">
   <a href="LICENSE"><img alt="License: all rights reserved" src="https://img.shields.io/badge/license-all%20rights%20reserved-111111"></a>

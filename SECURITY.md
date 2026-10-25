@@ -3,8 +3,8 @@
 ## Supported versions
 
 Only the latest release of the AlgorithShot desktop app gets security fixes.
-Installed copies update from the in-app banner, so please check that you are on
-the [latest release](https://github.com/algorithco/algorith-shot/releases/latest)
+Please check that you are on the
+[latest release](https://github.com/algorithco/algorith-shot/releases/latest)
 before you report a problem.
 
 | Version | Supported |
@@ -17,13 +17,9 @@ about it are still welcome.
 
 ## Reporting a vulnerability
 
-Do not report security problems in public issues, discussions or pull
-requests. Report them privately instead:
-
-- **Preferred:** use GitHub's
-  [Report a vulnerability](https://github.com/algorithco/algorith-shot/security/advisories/new)
-  form. Only the maintainers can see the report.
-- **Or** email **hello@algorithco.com** with "Security" in the subject.
+Do not report security problems in issues, discussions or pull requests, even
+though the repository is private. Instead, email **hello@algorithco.com** with
+"Security" in the subject.
 
 Please include:
 

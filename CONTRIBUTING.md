@@ -1,10 +1,10 @@
 # Contributing to AlgorithShot
 
-AlgorithShot is proprietary software. Its code may be visible, but it is not
-open source (see [LICENSE](LICENSE)). Code changes are accepted from the
-Algorithco team and from people we have invited to work on the project.
-Everyone is welcome to report bugs, suggest features and report security
-problems.
+AlgorithShot is proprietary software and is not open source (see
+[LICENSE](LICENSE)). This repository is private: only the Algorithco team and
+the people we have invited can see it and contribute to it. Anyone with access
+can report bugs and suggest features. Security problems are reported as
+described in [SECURITY.md](SECURITY.md).
 
 By taking part, you agree to follow the [code of conduct](CODE_OF_CONDUCT.md).
 
