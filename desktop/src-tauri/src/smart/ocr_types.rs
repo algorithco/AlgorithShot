@@ -18,14 +18,6 @@ pub struct OcrText { pub lang: String, pub lines: Vec<Line> }
 
 impl OcrText {
     pub fn text(&self) -> String { self.lines.iter().map(Line::text).collect::<Vec<_>>().join("\n") }
-    pub fn score(&self) -> usize {
-        self.lines.iter().flat_map(|l| &l.words).map(|w| {
-            let letters: Vec<char> = w.text.chars().filter(|c| c.is_alphanumeric()).collect();
-            let latin = letters.iter().any(|c| c.is_ascii_alphabetic());
-            let cyrillic = letters.iter().any(|c| matches!(c, '\u{0400}'..='\u{04FF}'));
-            if latin && cyrillic { 0 } else { letters.len() }
-        }).sum()
-    }
 }
 
 pub fn union_text(results: &[OcrText]) -> String {

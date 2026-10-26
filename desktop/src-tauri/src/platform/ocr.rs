@@ -43,8 +43,6 @@ pub fn init(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-pub fn languages() -> Vec<String> { vec!["en".into(), "ru".into(), "uz".into(), "uz-Cyrl".into()] }
-
 pub fn verify() -> Result<()> {
     let image = image::load_from_memory(include_bytes!("../../../test/fixtures/ocr-languages.png"))?.into_rgba8();
     let text = union_text(&read(&image)?);

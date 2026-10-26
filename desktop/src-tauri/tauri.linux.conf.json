@@ -2,7 +2,7 @@
   "bundle": {
     "targets": ["appimage", "deb", "rpm"],
     "linux": {
-      "deb": { "depends": ["libatspi2.0-0", "libpipewire-0.3-0", "libxcb1", "libxrandr2", "libegl1"] },
+      "deb": { "depends": ["at-spi2-core", "libatspi2.0-0", "libpipewire-0.3-0", "libxcb1", "libxrandr2", "libegl1"] },
       "rpm": { "depends": ["at-spi2-core", "pipewire-libs", "libxcb", "libXrandr", "mesa-libEGL"] }
     }
   }

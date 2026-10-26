@@ -1,7 +1,9 @@
 //! Screen capture: grabbing monitors, the capture session the overlay works
 //! on, and what happens when the user confirms a selection.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
+#[cfg(target_os = "windows")]
+use anyhow::Context;
 use image::RgbaImage;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};

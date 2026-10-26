@@ -34,7 +34,7 @@ builds also need the platform tools below.
 On Ubuntu:
 
 ```bash
-sudo apt-get install build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
+sudo apt-get install build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev at-spi2-core libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 ```
 
 Windows text recognition uses installed Windows OCR language packs. macOS and

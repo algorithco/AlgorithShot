@@ -41,8 +41,8 @@ impl Paths {
         let default_save_dir = if pictures.join("Algorithco Shot").is_dir() { pictures.join("Algorithco Shot") } else { pictures.join("AlgorithShot") };
         let config = p.app_config_dir()?;
         let mut private_dirs = vec![data.clone(), cache.clone(), config.clone(), p.app_local_data_dir()?, std::env::temp_dir()];
-        if let Some(install_dir) = std::env::current_exe()?.parent() {
-            private_dirs.push(install_dir.to_path_buf());
+        if let Some(install_dir) = installation_dir(&std::env::current_exe()?) {
+            private_dirs.push(install_dir);
         }
         Ok(Paths {
             settings: config.join("settings.json"),
@@ -60,6 +60,13 @@ impl Paths {
     }
 }
 
+/// Updates replace the whole macOS bundle, including Resources and sibling
+/// folders of Contents/MacOS, so protect more than the binary's parent.
+fn installation_dir(executable: &std::path::Path) -> Option<PathBuf> {
+    executable.ancestors().find(|path| path.extension().is_some_and(|ext| ext == "app"))
+        .or_else(|| executable.parent()).map(std::path::Path::to_path_buf)
+}
+
 /// True for folders inside OneDrive (personal or business), which sync to the cloud.
 pub fn is_cloud_synced(path: &std::path::Path) -> bool {
     path.components().any(|c| c.as_os_str().to_string_lossy().to_ascii_lowercase().starts_with("onedrive"))
@@ -72,6 +79,28 @@ pub struct HotkeyStatus {
     pub key: String,
     pub ok: bool,
     pub error: Option<String>,
+}
+
+#[cfg(test)]
+mod installation_tests {
+    use super::*;
+
+    #[test]
+    fn the_whole_app_bundle_is_treated_as_replaceable_application_data() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/app-bundle-test");
+        let bundle = root.join("AlgorithShot.app");
+        let executable = bundle.join("Contents/MacOS/algorithco-shot");
+        let install = installation_dir(&executable).unwrap();
+        assert_eq!(install, bundle);
+        assert!(crate::storage::validate_save_dir(&bundle.join("Contents/Resources/screenshots"), [&install]).is_err());
+        assert!(crate::storage::validate_save_dir(&root.join("Pictures/AlgorithShot"), [&install]).is_ok());
+    }
+
+    #[test]
+    fn other_installations_protect_the_executable_directory() {
+        let directory = std::path::Path::new("Programs").join("AlgorithShot");
+        assert_eq!(installation_dir(&directory.join("algorithco-shot.exe")), Some(directory));
+    }
 }
 
 /// What the last delete moved to the Recycle Bin, so it can be undone.

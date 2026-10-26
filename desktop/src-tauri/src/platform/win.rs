@@ -68,6 +68,7 @@ pub fn logical_rect_to_physical(r: Rect) -> Rect {
         (r.w as f64 * scale).round() as i32, (r.h as f64 * scale).round() as i32)
 }
 
+#[cfg(target_os = "macos")]
 pub fn physical_point_to_logical(x: i32, y: i32) -> (i32, i32) {
     if !cfg!(target_os = "macos") { return (x, y); }
     let scale = monitors().into_iter().find(|m| m.rect.contains(x, y)).map(|m| m.scale).unwrap_or(1.0);
