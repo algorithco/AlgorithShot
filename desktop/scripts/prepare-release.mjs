@@ -47,9 +47,9 @@ try {
   const privateKey = process.env.TAURI_SIGNING_PRIVATE_KEY_PATH || process.env.TAURI_SIGNING_PRIVATE_KEY || join(root, ".local/updater/algorithshot.key");
   if (!existsSync(privateKey)) throw new Error("Set TAURI_SIGNING_PRIVATE_KEY_PATH to the maintainer's private key file.");
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !["TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PATH", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"].includes(key.toUpperCase())));
-  env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD = process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "";
-  const run = (command, args) => {
-    const result = spawnSync(command, args, { cwd: repositoryRoot, stdio: "inherit", env });
+  const signingEnv = { ...env, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "" };
+  const run = (command, args, childEnv = env) => {
+    const result = spawnSync(command, args, { cwd: repositoryRoot, stdio: "inherit", env: childEnv });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`${command} failed (${result.status ?? result.signal}).`);
   };
@@ -66,14 +66,17 @@ try {
     for (const extension of platform.startsWith("linux") ? [".deb", ".rpm"] : platform.startsWith("darwin") ? [".dmg"] : []) {
       if (files.filter((name) => name.endsWith(extension)).length !== 1) throw new Error(`Missing or duplicate ${extension} installer for ${platform}`);
     }
-    const file = join(group.path, updateFiles[0]);
-    run(process.execPath, [cli, "signer", "sign", "--private-key-path", resolve(privateKey), "--app-version", version, file]);
-    run("cargo", ["run", "--manifest-path", join(repositoryRoot, "tools/verify-update/Cargo.toml"), "--locked", "--", join(root, "src-tauri/tauri.conf.json"), file, `${file}.sig`, version]);
-    const signed = { name: basename(file), signature: readFileSync(`${file}.sig`, "utf8").trim() };
-    if (platform === "darwin-universal") { platforms["darwin-x86_64"] = signed; platforms["darwin-aarch64"] = signed; }
-    else platforms[platform] = signed;
+    const signingFiles = platform.startsWith("linux") ? files : updateFiles;
+    for (const name of signingFiles) {
+      const file = join(group.path, name);
+      run(process.execPath, [cli, "signer", "sign", "--private-key-path", resolve(privateKey), "--app-version", version, file], signingEnv);
+      run("cargo", ["run", "--manifest-path", join(repositoryRoot, "tools/verify-update/Cargo.toml"), "--locked", "--", join(root, "src-tauri/tauri.conf.json"), file, `${file}.sig`, version]);
+      const signed = { name: basename(file), signature: readFileSync(`${file}.sig`, "utf8").trim() };
+      if (platform === "darwin-universal") { platforms["darwin-x86_64"] = signed; platforms["darwin-aarch64"] = signed; }
+      else platforms[platform + (name.endsWith(".deb") ? "-deb" : name.endsWith(".rpm") ? "-rpm" : "")] = signed;
+      cpSync(`${file}.sig`, join(output, `${basename(file)}.sig`));
+    }
     for (const name of files) cpSync(join(group.path, name), join(output, name));
-    cpSync(`${file}.sig`, join(output, `${basename(file)}.sig`));
     writeFileSync(join(output, `build-info-${platform}.json`), `${JSON.stringify(group.info, null, 2)}\n`);
     const notices = `THIRD_PARTY_LICENSES-${platform}.txt`;
     if (!existsSync(join(group.path, notices))) throw new Error(`Missing third-party license texts for ${platform}`);

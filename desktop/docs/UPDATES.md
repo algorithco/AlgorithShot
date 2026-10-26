@@ -42,7 +42,7 @@ The **Desktop release artifacts** workflow builds these packages from a source t
 | --- | --- | --- |
 | Windows x64 | NSIS `.exe` | The same `.exe` |
 | macOS Intel and Apple Silicon | Universal `.dmg` | Universal `.app.tar.gz` |
-| Linux x86_64, X11 | `.AppImage`, `.deb`, `.rpm` | `.AppImage` |
+| Linux x86_64, X11 | `.AppImage`, `.deb`, `.rpm` | Each matching package |
 
 The workflow has a read-only GitHub token and no updater private key. It uploads
 unsigned updater artifacts for review; it cannot publish a release. macOS builds
@@ -56,7 +56,9 @@ alias used by CI. Both commands preserve official update settings, validate the
 version and feed, verify embedded assets, collect dependency license texts, and
 use `desktop/src-tauri/target/release-build/`. macOS/Linux also verify native OCR.
 On headless Linux, run the command through `xvfb-run -a dbus-run-session --`.
-Outputs are under `desktop/.local/release/<version>/<platform>/`.
+Outputs are under `desktop/.local/release/<version>/<platform>/`. The builder
+also runs native verification from the packaged AppImage and macOS `.app`, and
+checks both architectures in a universal Mac executable.
 
 ## Signing and publishing
 
@@ -91,10 +93,12 @@ Outputs are under `desktop/.local/release/<version>/<platform>/`.
    against the configured public key. A wrong key, modified file, wrong version
    or missing platform stops preparation.
 6. Review the resulting `desktop/.local/release/<version>/publish-*/` folder.
-   It includes installers, three `.sig` files, build provenance for each OS,
+   It includes installers, five `.sig` files, build provenance for each OS,
    dependency license texts, `SHA256SUMS.txt` and one complete `latest.json`.
-   Its updater entries cover `windows-x86_64`, `linux-x86_64`, `darwin-x86_64`
-   and `darwin-aarch64`; both Mac entries use the universal app archive.
+   Its updater entries cover Windows, AppImage, Debian, RPM and both Mac
+   architectures. Both Mac entries use the universal app archive; Linux selects
+   the package type already installed. Debian/RPM updates may request system
+   authorization through Polkit or sudo.
 7. Create a draft release with the matching tag in `algorithco/algorith-shot-releases`.
    Attach every prepared file, link the source tag, describe the changes and
    list platform requirements. Publish the stable release only when all files

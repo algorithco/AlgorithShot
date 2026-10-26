@@ -71,18 +71,20 @@ export function createUpdateManifest({ version, tag, repository }, installerName
 
 /** Every supported updater target must be present before publishing the feed. */
 export function createPlatformUpdateManifest(release, artifacts) {
-  const expected = ["windows-x86_64", "linux-x86_64", "darwin-x86_64", "darwin-aarch64"];
+  const expected = ["windows-x86_64", "linux-x86_64", "linux-x86_64-deb", "linux-x86_64-rpm", "darwin-x86_64", "darwin-aarch64"];
   const platforms = {};
   for (const target of expected) {
     const artifact = artifacts[target];
     if (!artifact?.signature?.trim()) throw new Error(`Missing signed updater artifact for ${target}`);
     const name = artifact.name;
-    if (typeof name !== "string" || name.includes("/") || name.includes("\\") || !name.includes(`_${release.version}_`)) {
+    if (typeof name !== "string" || name.includes("/") || name.includes("\\") || !(name.includes(`_${release.version}_`) || name.includes(`-${release.version}-`))) {
       throw new Error(`Invalid updater filename for ${target}`);
     }
-    const extension = target.startsWith("windows") ? ".exe" : target.startsWith("linux") ? ".AppImage" : ".app.tar.gz";
+    const extension = target.endsWith("-deb") ? ".deb" : target.endsWith("-rpm") ? ".rpm"
+      : target.startsWith("windows") ? ".exe" : target.startsWith("linux") ? ".AppImage" : ".app.tar.gz";
     if (!name.endsWith(extension)) throw new Error(`Invalid updater file type for ${target}`);
     platforms[target] = { signature: artifact.signature.trim(), url: `https://github.com/${release.repository}/releases/download/${encodeURIComponent(release.tag)}/${encodeURIComponent(name)}` };
   }
+  platforms["linux-x86_64-appimage"] = platforms["linux-x86_64"];
   return { version: release.version, pub_date: new Date().toISOString(), platforms };
 }

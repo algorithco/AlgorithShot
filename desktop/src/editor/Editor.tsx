@@ -91,9 +91,14 @@ async function loadBitmap(url: string): Promise<ImageBitmap> {
   if (!blob.type.includes("svg")) return createImageBitmap(blob);
   // SVG (dev mocks only) has to go through an <img>.
   const img = new Image();
-  img.src = URL.createObjectURL(blob);
-  await img.decode();
-  return createImageBitmap(img);
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    img.src = objectUrl;
+    await img.decode();
+    return await createImageBitmap(img);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 /** Matches imaging::fit in Rust: scale to fit, centre, whole-pixel offsets. */
@@ -115,14 +120,14 @@ export function Editor() {
   const [version, setVersion] = useState(0);
   const renderer = useRef<BaseRenderer | null>(null);
   const base = useRef<OffscreenCanvas | null>(null);
-  const [toolState, setToolState] = useState<Tool>("pen");
+  const [toolState, setToolState] = useState<Tool | "highlight">("pen");
   // Older editor sessions used the same marker icon for a rectangle tool.
   const tool = toolState === "highlight" ? "marker" : toolState;
   const [opts, setOpts] = useState<Options>(DEFAULT_OPTS);
   const toolStyles = useRef<Partial<Record<Tool, Pick<Options, "width" | "opacity">>>>({
     pen: { width: 4, opacity: 1 }, pencil: { width: 2, opacity: 1 }, marker: { width: 24, opacity: 0.4 },
     line: { width: 4, opacity: 1 }, arrow: { width: 6, opacity: 1 }, box: { width: 4, opacity: 1 },
-    ellipse: { width: 4, opacity: 1 }, highlight: { width: 24, opacity: 0.55 },
+    ellipse: { width: 4, opacity: 1 },
   });
   const lastDrawingTool = useRef<Tool>("pen");
   const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 });
@@ -163,8 +168,13 @@ export function Editor() {
       renderer.current = new BaseRenderer(bmp);
       base.current = renderer.current.render([]);
       const h = newHistory(bmp.width, bmp.height);
+      bmp.close();
       setHist(h);
       setSaved(h.present);
+      setSelected(null);
+      setCrop(null);
+      setToolState("pen");
+      setError(null);
       setInfo(i);
       setFormat(i.format === "jpg" || i.format === "jpeg" ? "jpeg" : i.format === "webp" ? "webp" : "png");
       setVersion((v) => v + 1);
@@ -219,7 +229,9 @@ export function Editor() {
     setHist((h) => {
       if (!h) return h;
       // Raster tools operate on everything visible, including paint strokes.
-      const source = h.present.marks.length ? withOp(h.present, { kind: "rasterize", marks: h.present.marks }) : h.present;
+      const source = op.kind === "replace"
+        ? { ...h.present, marks: [] }
+        : h.present.marks.length ? withOp(h.present, { kind: "rasterize", marks: h.present.marks }) : h.present;
       return commit(h, withOp(source, op));
     });
     setSelected(null);
@@ -236,7 +248,7 @@ export function Editor() {
       toolStyles.current[tool] = { width: o.width, opacity: o.opacity };
       return { ...o, ...toolStyles.current[next] };
     });
-    if (["pen", "pencil", "marker", "line", "arrow", "box", "ellipse", "highlight"].includes(next)) lastDrawingTool.current = next;
+    if (["pen", "pencil", "marker", "line", "arrow", "box", "ellipse"].includes(next)) lastDrawingTool.current = next;
     setToolState(next);
     if (next !== "select") setSelected(null);
     if (next === "crop" && doc) setCrop(fitCrop({ x: 0, y: 0, w: doc.width, h: doc.height }, { w: doc.width, h: doc.height }, cropRatio));

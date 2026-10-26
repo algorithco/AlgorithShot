@@ -108,6 +108,8 @@ function allPlatforms() {
   return {
     "windows-x86_64": { name: "AlgorithShot_0.2.0_x64-setup.exe", signature: "windows-signature" },
     "linux-x86_64": { name: "AlgorithShot_0.2.0_amd64.AppImage", signature: "linux-signature" },
+    "linux-x86_64-deb": { name: "AlgorithShot_0.2.0_amd64.deb", signature: "deb-signature" },
+    "linux-x86_64-rpm": { name: "AlgorithShot-0.2.0-1.x86_64.rpm", signature: "rpm-signature" },
     "darwin-x86_64": { name: "AlgorithShot_0.2.0_universal.app.tar.gz", signature: "mac-signature" },
     "darwin-aarch64": { name: "AlgorithShot_0.2.0_universal.app.tar.gz", signature: "mac-signature" },
   };
@@ -119,9 +121,12 @@ test("build metadata validation needs no private signing material", () => {
 
 test("a complete update feed supports Windows, Linux and both Mac architectures", () => {
   const manifest = createPlatformUpdateManifest(validateReleaseMetadata(options()), allPlatforms());
-  assert.deepEqual(Object.keys(manifest.platforms).sort(), ["darwin-aarch64", "darwin-x86_64", "linux-x86_64", "windows-x86_64"]);
+  assert.deepEqual(Object.keys(manifest.platforms).sort(), ["darwin-aarch64", "darwin-x86_64", "linux-x86_64", "linux-x86_64-appimage", "linux-x86_64-deb", "linux-x86_64-rpm", "windows-x86_64"]);
   assert.match(manifest.platforms["linux-x86_64"].url, /algorith-shot-releases\/releases\/download\/v0\.2\.0\//);
   assert.equal(manifest.platforms["darwin-aarch64"].url, manifest.platforms["darwin-x86_64"].url);
+  assert.match(manifest.platforms["linux-x86_64-deb"].url, /\.deb$/);
+  assert.match(manifest.platforms["linux-x86_64-rpm"].url, /\.rpm$/);
+  assert.equal(manifest.platforms["linux-x86_64-appimage"].url, manifest.platforms["linux-x86_64"].url);
 });
 
 test("a release feed cannot omit a supported platform or use an unsigned, wrong-version or wrong-type artifact", () => {
@@ -129,6 +134,9 @@ test("a release feed cannot omit a supported platform or use an unsigned, wrong-
   const missing = allPlatforms();
   delete missing["linux-x86_64"];
   assert.throws(() => createPlatformUpdateManifest(release, missing), /linux-x86_64/);
+  const missingDeb = allPlatforms();
+  delete missingDeb["linux-x86_64-deb"];
+  assert.throws(() => createPlatformUpdateManifest(release, missingDeb), /linux-x86_64-deb/);
   for (const name of ["../AlgorithShot_0.2.0_x64-setup.exe", "AlgorithShot_0.1.2_x64-setup.exe", "AlgorithShot_0.2.0_universal.dmg"]) {
     const artifacts = allPlatforms();
     artifacts["windows-x86_64"].name = name;

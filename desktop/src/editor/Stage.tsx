@@ -19,7 +19,7 @@ import { dragCrop } from "./crop";
 import { handleOfMark, markAt, markHandles, markId, nextStep, reshapeMark, shiftMark, type Axis, type Doc, type HideStyle, type Mark, type Op } from "./doc";
 import { drawMark, drawMarks, flatten, markBounds, MARK_FONT } from "./render";
 
-export type Tool = "select" | "crop" | "erase" | "fill" | "cut" | "hide" | "pen" | "pencil" | "marker" | "line" | "ellipse" | "eyedropper" | "arrow" | "box" | "highlight" | "text" | "step";
+export type Tool = "select" | "crop" | "erase" | "fill" | "cut" | "hide" | "pen" | "pencil" | "marker" | "line" | "ellipse" | "eyedropper" | "arrow" | "box" | "text" | "step";
 
 export type Options = {
   color: string;
@@ -145,6 +145,9 @@ export function Stage(p: Props) {
 
   // Undo, redo, or another document change must not leave a held gesture alive.
   useEffect(() => { if (drag.current) cancelDrag(); }, [p.doc]);
+  useEffect(() => {
+    if (drag.current && drag.current.kind !== "pan") cancelDrag();
+  }, [p.view.zoom, p.view.x, p.view.y]);
 
   // Space held = pan with the mouse.
   useEffect(() => {
@@ -339,8 +342,7 @@ export function Stage(p: Props) {
       const hit = markAt(doc.marks, pt, slack);
       if (hit) {
         props.current.onSelect(hit.id);
-        if (tool === "text" && hit.kind === "text") setText({ at: hit.at, value: hit.text, id: hit.id });
-        else drag.current = { kind: "move", id: hit.id, start: pt, now: pt };
+        drag.current = { kind: "move", id: hit.id, start: pt, now: pt };
         requestDraw();
         return;
       }
@@ -372,7 +374,6 @@ export function Stage(p: Props) {
       case "hide":
       case "box":
       case "ellipse":
-      case "highlight":
         drag.current = { kind: "rect", tool, start: pt, now: pt };
         break;
       case "arrow":
@@ -460,10 +461,6 @@ export function Stage(p: Props) {
         if (d.tool === "box" || d.tool === "ellipse") {
           const id = markId();
           props.current.onMarks([...doc.marks, { id, kind: d.tool, rect: r, color: opts.color, width: opts.width, opacity: opts.opacity, fill: opts.fillShape }], id);
-        }
-        if (d.tool === "highlight") {
-          const id = markId();
-          props.current.onMarks([...doc.marks, { id, kind: "highlight", rect: r, color: opts.highlight, opacity: opts.opacity }], id);
         }
         break;
       }
@@ -689,7 +686,6 @@ function drawPreview(ctx: CanvasRenderingContext2D, d: Drag, opts: Options, doc:
     const r = intersect(fromPoints(d.start, d.now), { x: 0, y: 0, w: doc.width, h: doc.height });
     if (!r) return;
     if (d.tool === "box" || d.tool === "ellipse") drawMark(ctx, { id: "p", kind: d.tool, rect: r, color: opts.color, width: opts.width, opacity: opts.opacity, fill: opts.fillShape });
-    else if (d.tool === "highlight") drawMark(ctx, { id: "p", kind: "highlight", rect: r, color: opts.highlight, opacity: opts.opacity });
     else if (d.tool === "erase") tint(r, "rgba(229, 72, 77, 0.22)", "#e5484d");
     else tint(r, "rgba(255, 211, 0, 0.18)", TALLY);
   }

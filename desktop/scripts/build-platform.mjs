@@ -54,9 +54,21 @@ try {
     }
   }
   collect(bundle);
+  if (process.platform === "linux") {
+    const images = readdirSync(output).filter((name) => name.endsWith(".AppImage"));
+    if (images.length !== 1) throw new Error("Expected exactly one Linux AppImage.");
+    const verification = spawnSync(join(output, images[0]), ["--verify-platform"], {
+      cwd: root, stdio: "inherit", env: { ...env, APPIMAGE_EXTRACT_AND_RUN: "1" },
+    });
+    if (verification.error) throw verification.error;
+    if (verification.status !== 0) throw new Error("The packaged AppImage failed native verification.");
+  }
   if (process.platform === "darwin") {
     const app = `${config.productName}.app`;
     if (!existsSync(join(bundle, "macos", app))) throw new Error("The macOS application bundle is missing.");
+    const bundledExecutable = join(bundle, "macos", app, "Contents/MacOS/algorithco-shot");
+    if (target) run("lipo", ["-verify_arch", "x86_64", "arm64", bundledExecutable]);
+    run(bundledExecutable, ["--verify-platform"]);
     const archive = join(output, `${config.productName}_${version}_${target ? "universal" : process.arch}.app.tar.gz`);
     run("tar", ["-czf", archive, "-C", join(bundle, "macos"), app]);
   }
