@@ -68,7 +68,7 @@ try {
     if (!existsSync(join(bundle, "macos", app))) throw new Error("The macOS application bundle is missing.");
     const bundledExecutable = join(bundle, "macos", app, "Contents/MacOS/algorithco-shot");
     run("codesign", ["--verify", "--deep", "--strict", join(bundle, "macos", app)]);
-    if (target) run("lipo", ["-verify_arch", "x86_64", "arm64", bundledExecutable]);
+    if (target) run("lipo", [bundledExecutable, "-verify_arch", "x86_64", "arm64"]);
     run(bundledExecutable, ["--verify-platform"]);
     const archive = join(output, `${config.productName}_${version}_${target ? "universal" : process.arch}.app.tar.gz`);
     run("tar", ["-czf", archive, "-C", join(bundle, "macos"), app]);
