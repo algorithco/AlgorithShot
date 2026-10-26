@@ -11,14 +11,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/algorithco/algorith-shot-releases/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/algorithco/algorith-shot-releases?label=release&labelColor=111111&color=ffd300"></a>
+  <a href="https://github.com/algorithco/AlgorithShot/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/algorithco/AlgorithShot?label=release&labelColor=111111&color=ffd300"></a>
   <a href="https://github.com/algorithco/AlgorithShot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/algorithco/AlgorithShot/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <img alt="Platforms: Windows, macOS, Linux X11" src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20X11-111111">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/algorithco/algorith-shot-releases/releases/latest"><b>Download</b></a> ·
+  <a href="https://github.com/algorithco/AlgorithShot/releases/latest"><b>Download</b></a> ·
   <a href="desktop/README.md">Desktop guide</a> ·
   <a href="shot-api/README.md">API</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
@@ -45,7 +45,7 @@
 ## Download
 
 Choose the installer for your platform from the
-[latest release](https://github.com/algorithco/algorith-shot-releases/releases/latest):
+[latest release](https://github.com/algorithco/AlgorithShot/releases/latest):
 
 | Platform | Download | Requirements |
 | --- | --- | --- |
@@ -58,10 +58,13 @@ permission for element selection and browser context. Linux's full feature set
 requires an X11 session; Wayland's window and global shortcut restrictions are
 outside the supported desktop configuration. See the [desktop guide](desktop/README.md).
 
-The [Releases](https://github.com/algorithco/algorith-shot-releases/releases)
-page has notes for every version. Installers and the update feed are published
-in the public [algorith-shot-releases](https://github.com/algorithco/algorith-shot-releases)
-repository. This repository contains the source code for the desktop app and API.
+The [Releases](https://github.com/algorithco/AlgorithShot/releases)
+page has notes for every version. This repository contains the desktop app and
+API source, official installers, signatures, checksums and the update feed.
+
+Versions 0.1.2 and 0.2.0 used a retired update location. Install 0.2.1 or newer
+once from this repository to restore automatic updates. Screenshots and settings
+are preserved when installing over an older version.
 
 ## Repository
 

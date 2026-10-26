@@ -6,8 +6,9 @@ permissions before incorporating or relicensing it.
 
 ## Reviews and repository settings
 
-The source repository is `algorithco/AlgorithShot`. Official installer assets
-and the update feed are in `algorithco/algorith-shot-releases`.
+The source, official installer assets and update feed are all published in
+`algorithco/AlgorithShot`. Attach the complete prepared artifact set to its
+matching tagged release; a source-only release is incomplete.
 
 Protect `main` with these settings:
 

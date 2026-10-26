@@ -8,7 +8,7 @@
     "url": "git+https://github.com/algorithco/AlgorithShot.git",
     "directory": "desktop"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "node scripts/prepare-ocr.mjs && vite",

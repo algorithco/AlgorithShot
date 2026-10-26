@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-10-26
+
+- Publish official desktop installers, signatures and the update feed alongside
+  the source in the AlgorithShot repository.
+- Point the desktop updater and all download links at the same repository.
+- Versions 0.1.2 and 0.2.0 need a one-time manual installation of 0.2.1 or newer
+  because their embedded update location has been retired.
+
 ## 0.2.0 — 2026-10-26
 
 - Release the desktop app and Shot API source under the MIT License.
