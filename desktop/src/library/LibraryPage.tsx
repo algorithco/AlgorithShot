@@ -129,9 +129,10 @@ export function LibraryPage() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       const typing = tag === "INPUT" || tag === "TEXTAREA";
+      const primaryModifier = e.ctrlKey || e.metaKey;
       const state = useLibrary.getState();
       const ids = [...state.selected];
-      if ((e.ctrlKey && e.key.toLowerCase() === "f") || (!typing && e.key === "/")) {
+      if ((primaryModifier && e.key.toLowerCase() === "f") || (!typing && e.key === "/")) {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
@@ -142,10 +143,10 @@ export function LibraryPage() {
         e.preventDefault();
         if (e.shiftKey) setConfirmIds(ids);
         else remove(ids, false);
-      } else if (e.ctrlKey && e.key.toLowerCase() === "a") {
+      } else if (primaryModifier && e.key.toLowerCase() === "a") {
         e.preventDefault();
         state.selectAll();
-      } else if (e.ctrlKey && e.key.toLowerCase() === "c" && ids.length) {
+      } else if (primaryModifier && e.key.toLowerCase() === "c" && ids.length) {
         e.preventDefault();
         run(() => api.copy(ids, ids.length > 1), t("common.copied"));
       } else if (e.key === "Enter" && ids.length === 1) {
@@ -396,7 +397,7 @@ function Grid({ onMenu }: { onMenu: (shot: Shot, x: number, y: number) => void }
                     width={tileW}
                     thumbH={thumbH}
                     selected={selected.has(s.id)}
-                    onClick={(e) => select(s.id, e.shiftKey ? "range" : e.ctrlKey ? "toggle" : "only")}
+                    onClick={(e) => select(s.id, e.shiftKey ? "range" : e.ctrlKey || e.metaKey ? "toggle" : "only")}
                     onMenu={(x, y) => onMenu(s, x, y)}
                   />
                 ))

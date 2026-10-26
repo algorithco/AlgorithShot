@@ -8,6 +8,7 @@
 - Bundle offline English, Russian and Uzbek OCR on macOS/Linux and an offline
   face detector for privacy review.
 - Support macOS Trash undo while preserving screenshots and edited originals.
+- Support Command shortcuts for library selection, search and copying on macOS.
 - Add builds without private signing keys, tests on all three operating systems,
   native WebKit OCR verification, and coordinated multi-platform update manifests.
 - Add contributor and maintainer guides, branding guidelines, a roadmap,

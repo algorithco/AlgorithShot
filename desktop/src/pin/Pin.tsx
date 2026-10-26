@@ -32,7 +32,10 @@ export function Pin() {
     initSettings();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
-      if (e.ctrlKey && e.key.toLowerCase() === "c") api.tempCopy(id).then(() => toast({ text: t("common.copied") }, 1500));
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        api.tempCopy(id).then(() => toast({ text: t("common.copied") }, 1500));
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
