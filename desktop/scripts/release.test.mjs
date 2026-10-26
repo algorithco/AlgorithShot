@@ -1,18 +1,32 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { createPlatformUpdateManifest, createUpdateManifest, localBuildOptions, updaterBuildConfig, validateRelease, validateReleaseMetadata } from "./release.mjs";
 
 function options() {
   return {
     config: {
       version: "0.2.0",
-      plugins: { updater: { endpoints: ["https://github.com/algorithco/algorith-shot-releases/releases/latest/download/latest.json"] } },
+      plugins: { updater: { endpoints: ["https://github.com/algorithco/AlgorithShot/releases/latest/download/latest.json"] } },
     },
     packageVersion: "0.2.0",
     cargoVersion: "0.2.0",
     env: { TAURI_UPDATER_PUBLIC_KEY: "test-public-key", TAURI_SIGNING_PRIVATE_KEY: "test-key-path" },
   };
 }
+
+test("the official updater and package metadata use the source repository for releases", () => {
+  const config = JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"));
+  const desktopPackage = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const cargo = readFileSync(new URL("../src-tauri/Cargo.toml", import.meta.url), "utf8");
+  const release = validateReleaseMetadata({ config, packageVersion: desktopPackage.version, cargoVersion: /^version\s*=\s*"([^"]+)"/m.exec(cargo)?.[1] });
+  const sourceRepository = new URL(desktopPackage.repository.url.replace(/^git\+/, "").replace(/\.git$/, "")).pathname.slice(1);
+  assert.equal(release.repository, sourceRepository);
+  assert.equal(release.repository, "algorithco/AlgorithShot");
+  for (const artifact of Object.values(createPlatformUpdateManifest(validateReleaseMetadata(options()), allPlatforms()).platforms)) {
+    assert.ok(artifact.url.startsWith(`https://github.com/${release.repository}/releases/download/`));
+  }
+});
 
 test("release version must match across all three manifests", () => {
   assert.throws(() => validateRelease({ ...options(), cargoVersion: "0.1.0" }), /Versions must match/);
@@ -51,7 +65,7 @@ test("the public feed determines which repository owns installer URLs", () => {
   const input = options();
   input.config.plugins.updater.endpoints[0] = "https://example.com/latest.json";
   assert.throws(() => validateRelease(input), /public GitHub/);
-  assert.deepEqual(validateRelease(options()), { version: "0.2.0", tag: "v0.2.0", repository: "algorithco/algorith-shot-releases" });
+  assert.deepEqual(validateRelease(options()), { version: "0.2.0", tag: "v0.2.0", repository: "algorithco/AlgorithShot" });
 });
 
 test("the manifest contains a signature and an exact versioned download URL", () => {
@@ -59,7 +73,7 @@ test("the manifest contains a signature and an exact versioned download URL", ()
   assert.equal(manifest.version, "0.2.0");
   assert.deepEqual(manifest.platforms["windows-x86_64"], {
     signature: "signature-content",
-    url: "https://github.com/algorithco/algorith-shot-releases/releases/download/v0.2.0/AlgorithShot_0.2.0_x64-setup.exe",
+    url: "https://github.com/algorithco/AlgorithShot/releases/download/v0.2.0/AlgorithShot_0.2.0_x64-setup.exe",
   });
   assert.ok(Number.isFinite(Date.parse(manifest.pub_date)));
 });
@@ -122,7 +136,7 @@ test("build metadata validation needs no private signing material", () => {
 test("a complete update feed supports Windows, Linux and both Mac architectures", () => {
   const manifest = createPlatformUpdateManifest(validateReleaseMetadata(options()), allPlatforms());
   assert.deepEqual(Object.keys(manifest.platforms).sort(), ["darwin-aarch64", "darwin-x86_64", "linux-x86_64", "linux-x86_64-appimage", "linux-x86_64-deb", "linux-x86_64-rpm", "windows-x86_64"]);
-  assert.match(manifest.platforms["linux-x86_64"].url, /algorith-shot-releases\/releases\/download\/v0\.2\.0\//);
+  assert.match(manifest.platforms["linux-x86_64"].url, /AlgorithShot\/releases\/download\/v0\.2\.0\//);
   assert.equal(manifest.platforms["darwin-aarch64"].url, manifest.platforms["darwin-x86_64"].url);
   assert.match(manifest.platforms["linux-x86_64-deb"].url, /\.deb$/);
   assert.match(manifest.platforms["linux-x86_64-rpm"].url, /\.rpm$/);

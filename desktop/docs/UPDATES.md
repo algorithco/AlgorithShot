@@ -1,15 +1,16 @@
 # Desktop releases and updates
 
-Official installers and `latest.json` are published in
-[algorithco/algorith-shot-releases](https://github.com/algorithco/algorith-shot-releases).
-The desktop and API source is in
-[algorithco/AlgorithShot](https://github.com/algorithco/AlgorithShot), under MIT.
-Each release links to the exact source tag used to build it.
+The desktop and API source, official installers and `latest.json` are all
+published in [algorithco/AlgorithShot](https://github.com/algorithco/AlgorithShot),
+under MIT. Each tagged release includes the complete installer, signature,
+checksum and license artifact set built from that source commit.
 
-The existing update feed remains:
-`https://github.com/algorithco/algorith-shot-releases/releases/latest/download/latest.json`.
-Keep that URL and the trusted public key so installed Windows versions can update.
-Versions 0.1.0 and 0.1.1 may need a one-time manual installation of 0.1.2 or later.
+The update feed is:
+`https://github.com/algorithco/AlgorithShot/releases/latest/download/latest.json`.
+Keep that URL and the trusted public key for future updates. Versions 0.1.2 and
+0.2.0 embed the retired separate-repository URL, so their users must manually
+install 0.2.1 or newer once. Versions 0.1.0 and 0.1.1 also need a manual upgrade.
+Installing over an older version preserves screenshots and settings.
 
 ## Build from source
 
@@ -67,12 +68,12 @@ checks both architectures in a universal Mac executable.
    Run the checks in [the maintainer guide](../../docs/MAINTAINING.md). All three
    native CI jobs must pass before publishing.
 2. Commit and push the reviewed source, then tag that exact commit, for example
-   `v0.2.0`. Pushing the tag starts the release artifact workflow.
+   `v0.2.1`. Pushing the tag starts the release artifact workflow.
 3. When every platform build succeeds, check out that exact source commit and
    download all three artifact groups from that run:
 
    ```bash
-   gh run download <run-id> --repo algorithco/AlgorithShot --dir .local/release-downloads/v0.2.0
+   gh run download <run-id> --repo algorithco/AlgorithShot --dir .local/release-downloads/v0.2.1
    ```
 
 4. Set `TAURI_SIGNING_PRIVATE_KEY_PATH` to the maintainer's existing private key
@@ -83,7 +84,7 @@ checks both architectures in a universal Mac executable.
 5. Run the signing and verification command from the repository root:
 
    ```bash
-   pnpm release:prepare .local/release-downloads/v0.2.0
+   pnpm release:prepare .local/release-downloads/v0.2.1
    ```
 
    It requires all platform groups to identify the current source commit,
@@ -99,10 +100,11 @@ checks both architectures in a universal Mac executable.
    architectures. Both Mac entries use the universal app archive; Linux selects
    the package type already installed. Debian/RPM updates may request system
    authorization through Polkit or sudo.
-7. Create a draft release with the matching tag in `algorithco/algorith-shot-releases`.
+7. Create a draft release with the matching tag in `algorithco/AlgorithShot`.
    Attach every prepared file, link the source tag, describe the changes and
    list platform requirements. Publish the stable release only when all files
-   are present and reviewed. Link it from the source repository's matching release.
+   are present and reviewed. Verify the public download URLs and the update feed
+   from that same repository before marking the release as latest.
 
 Preparation does not publish anything or upload the private key. The verifier
 also checks the signature over Minisign's trusted comment. The updater signature
