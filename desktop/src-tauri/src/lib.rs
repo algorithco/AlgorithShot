@@ -17,6 +17,9 @@ mod imaging;
 mod jobs;
 mod library;
 mod pins;
+#[cfg(not(target_os = "windows"))]
+#[path = "platform/checks.rs"]
+mod platform_checks;
 mod protocol;
 mod settings;
 mod shots;
@@ -115,11 +118,11 @@ pub fn run() {
             {
                 win::init(&handle);
                 smart::ocr::init(&handle)?;
-                if std::env::args().any(|arg| arg == "--verify-ocr") {
+                if std::env::args().any(|arg| arg == "--verify-ocr" || arg == "--verify-platform") {
                     let app = handle.clone();
                     std::thread::spawn(move || {
-                        match smart::ocr::verify() {
-                            Ok(()) => { println!("Verified offline English, Russian and Uzbek OCR in the native webview."); app.exit(0); }
+                        match platform_checks::verify() {
+                            Ok(()) => { println!("Verified native offline OCR, clipboard text/images/files and the face model; Linux also verifies X11 capture."); app.exit(0); }
                             Err(error) => { eprintln!("Native OCR verification failed: {error:#}"); app.exit(1); }
                         }
                     });

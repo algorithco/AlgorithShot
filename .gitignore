@@ -13,6 +13,7 @@ dist-ssr
 *.local
 *.tsbuildinfo
 desktop/public/ocr/
+tools/verify-update/target/
 
 # Local service configuration; keep the documented example in Git.
 .env

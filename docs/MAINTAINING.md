@@ -62,25 +62,31 @@ pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
 pnpm test:release
+pnpm test:ocr
 pnpm build
 pnpm desktop:build:local --debug
 cargo test --manifest-path desktop/src-tauri/Cargo.toml --lib --locked
 pnpm audit --prod --audit-level high
 ```
 
-Run native checks on Windows. Capture and OCR tests need an interactive
-desktop and the appropriate Windows OCR language packs. CI excludes those
-tests, so run them locally when their functionality changes.
+Run native checks on each supported OS. Capture tests need an interactive
+desktop; Windows OCR tests need the appropriate language packs. CI excludes
+those interactive tests and verifies macOS/Linux OCR through the real native
+webview with bundled offline models. Run capture tests locally when their
+functionality changes. Full Linux desktop support requires X11.
 
 Review dependency licenses and advisories from both lockfiles. For JavaScript,
 use `pnpm licenses list` after installing dependencies. For Rust, inspect
 `cargo metadata --locked --format-version 1` and the dependency LICENSE/NOTICE
 files, including bundled C/C++ libraries. Preserve required attribution and
-include applicable texts with binary distributions. See
+include applicable texts with binary distributions. The release builder gathers
+upstream license and NOTICE texts into a resource in each installer and a
+platform-specific report alongside the release assets. See
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 
-Follow [UPDATES.md](../desktop/docs/UPDATES.md) to create an official signed
-installer. Match its version and tag to the exact source commit, and link that
+Follow [UPDATES.md](../desktop/docs/UPDATES.md) to build all platform installers,
+sign updater artifacts locally and verify the full cohort. Match its version
+and tag to the exact source commit, and link that
 tag in the release notes. Include a changelog and known limitations. Keep
 `latest.json` on the existing public feed so installed apps can update.
 

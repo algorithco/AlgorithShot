@@ -23,7 +23,7 @@ Instead, email **hello@algorithco.com** with
 
 Please include:
 
-- the AlgorithShot version (shown in **Settings › About**) and your Windows version;
+- the AlgorithShot version (shown in **Settings › About**), OS version and desktop session;
 - what an attacker could do, and the steps or a proof of concept to reproduce it;
 - logs or screenshots, with your own private data removed.
 
@@ -45,7 +45,7 @@ We are especially interested in:
 
 Out of scope:
 
-- problems that need an attacker who already controls the user's Windows account
+- problems that need an attacker who already controls the user's OS account
   or has administrator rights;
 - reports from automated scanners that show no real impact;
 - social engineering and physical attacks.

@@ -5,12 +5,16 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   ArrowUpRight,
   Copy,
+  Circle,
   Crop,
   Download,
   Eraser,
   EyeOff,
   Hash,
   Highlighter,
+  Pipette,
+  Pencil,
+  PenTool,
   Maximize,
   Minus,
   MousePointer2,
@@ -36,6 +40,7 @@ import { ExportPanel, SizePanel, ToolOptions } from "./Panels";
 import { PrivacyPanel } from "./Privacy";
 import { BaseRenderer, bitmapFromRgba, flatten, rgbaOf } from "./render";
 import { Stage, type Options, type Tool, type View } from "./Stage";
+import { fitCrop } from "./crop";
 
 const params = new URLSearchParams(location.search);
 const START_TARGET = params.get("target") ?? "";
@@ -49,21 +54,30 @@ const TOOLS: { id: Tool; icon: LucideIcon; key: string }[] = [
   { id: "cut", icon: Scissors, key: "x" },
   { id: "hide", icon: EyeOff, key: "h" },
 ];
+const DRAW_TOOLS: { id: Tool; icon: LucideIcon; key: string }[] = [
+  { id: "pen", icon: PenTool, key: "p" },
+  { id: "pencil", icon: Pencil, key: "d" },
+  { id: "marker", icon: Highlighter, key: "m" },
+];
 const MARK_TOOLS: { id: Tool; icon: LucideIcon; key: string }[] = [
+  { id: "line", icon: Minus, key: "l" },
   { id: "arrow", icon: ArrowUpRight, key: "a" },
   { id: "box", icon: Square, key: "b" },
-  { id: "highlight", icon: Highlighter, key: "m" },
+  { id: "ellipse", icon: Circle, key: "o" },
   { id: "text", icon: Type, key: "t" },
   { id: "step", icon: Hash, key: "n" },
+  { id: "eyedropper", icon: Pipette, key: "i" },
 ];
 
 const DEFAULT_OPTS: Options = {
   color: "#E5484D",
   highlight: "#FFE066",
-  width: 6,
+  width: 4,
+  opacity: 1,
+  fillShape: false,
   hide: "pixelate",
   strength: 14,
-  eraseMode: "box",
+  eraseMode: "brush",
   brush: 28,
   axis: "horizontal",
   textSize: 28,
@@ -101,8 +115,16 @@ export function Editor() {
   const [version, setVersion] = useState(0);
   const renderer = useRef<BaseRenderer | null>(null);
   const base = useRef<OffscreenCanvas | null>(null);
-  const [tool, setToolState] = useState<Tool>("select");
+  const [toolState, setToolState] = useState<Tool>("pen");
+  // Older editor sessions used the same marker icon for a rectangle tool.
+  const tool = toolState === "highlight" ? "marker" : toolState;
   const [opts, setOpts] = useState<Options>(DEFAULT_OPTS);
+  const toolStyles = useRef<Partial<Record<Tool, Pick<Options, "width" | "opacity">>>>({
+    pen: { width: 4, opacity: 1 }, pencil: { width: 2, opacity: 1 }, marker: { width: 24, opacity: 0.4 },
+    line: { width: 4, opacity: 1 }, arrow: { width: 6, opacity: 1 }, box: { width: 4, opacity: 1 },
+    ellipse: { width: 4, opacity: 1 }, highlight: { width: 24, opacity: 0.55 },
+  });
+  const lastDrawingTool = useRef<Tool>("pen");
   const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 });
   const stageSize = useRef({ w: 800, h: 600 });
   /** Keep the image fitted to the window until the user zooms or pans. */
@@ -121,6 +143,9 @@ export function Editor() {
   const doc = hist?.present ?? null;
   const dirty = !!hist && hist.present !== saved;
   const selectedMark = doc?.marks.find((m) => m.id === selected) ?? null;
+  const optionsGesture = useRef<Doc | null>(null);
+  const beginOptions = () => { optionsGesture.current ??= doc; };
+  const endOptions = () => { optionsGesture.current = null; };
   const dpr = devicePixelRatio || 1;
 
   const fail = useCallback((e: unknown) => {
@@ -167,7 +192,7 @@ export function Editor() {
 
   const fit = useCallback((w: number, h: number) => {
     const s = stageSize.current;
-    const zoom = Math.min((s.w - 64) / w, (s.h - 64) / h, 1 / dpr);
+    const zoom = Math.max(0.005, Math.min(Math.max(1, s.w - 64) / w, Math.max(1, s.h - 64) / h, 1 / dpr));
     setView({ zoom, x: Math.round((s.w - w * zoom) / 2), y: Math.round((s.h - h * zoom) / 2) });
   }, [dpr]);
 
@@ -190,36 +215,58 @@ export function Editor() {
 
   // ---- editing ----
 
-  const applyOp = useCallback((op: Op) => setHist((h) => h && commit(h, withOp(h.present, op))), []);
+  const applyOp = useCallback((op: Op) => {
+    setHist((h) => {
+      if (!h) return h;
+      // Raster tools operate on everything visible, including paint strokes.
+      const source = h.present.marks.length ? withOp(h.present, { kind: "rasterize", marks: h.present.marks }) : h.present;
+      return commit(h, withOp(source, op));
+    });
+    setSelected(null);
+  }, []);
   const setMarks = useCallback((marks: Mark[], select?: string) => {
     setHist((h) => h && commit(h, { ...h.present, marks }));
     if (select) setSelected(select);
   }, []);
 
   const setTool = (next: Tool) => {
+    if (busy) return;
+    endOptions();
+    setOpts((o) => {
+      toolStyles.current[tool] = { width: o.width, opacity: o.opacity };
+      return { ...o, ...toolStyles.current[next] };
+    });
+    if (["pen", "pencil", "marker", "line", "arrow", "box", "ellipse", "highlight"].includes(next)) lastDrawingTool.current = next;
     setToolState(next);
     if (next !== "select") setSelected(null);
-    if (next === "crop" && doc) setCrop({ x: 0, y: 0, w: doc.width, h: doc.height });
+    if (next === "crop" && doc) setCrop(fitCrop({ x: 0, y: 0, w: doc.width, h: doc.height }, { w: doc.width, h: doc.height }, cropRatio));
     else setCrop(null);
   };
 
   // Changing colour or size with a mark selected restyles that mark.
   const onOpts = (patch: Partial<Options>) => {
-    setOpts((o) => ({ ...o, ...patch }));
+    if (busy) return;
+    setOpts((o) => Object.entries(patch).every(([key, value]) => o[key as keyof Options] === value) ? o : { ...o, ...patch });
     if (!selectedMark || !doc) return;
     const m = selectedMark;
     let next: Mark = m;
-    if (patch.color && (m.kind === "arrow" || m.kind === "box" || m.kind === "text" || m.kind === "step")) next = { ...next, color: patch.color } as Mark;
-    if (patch.highlight && m.kind === "highlight") next = { ...m, color: patch.highlight };
-    if (patch.width && (m.kind === "arrow" || m.kind === "box")) next = { ...m, width: patch.width };
-    if (patch.textSize && m.kind === "text") next = { ...m, size: patch.textSize };
-    if (patch.stepSize && m.kind === "step") next = { ...m, size: patch.stepSize };
-    if (next !== m) setMarks(doc.marks.map((x) => (x.id === m.id ? next : x)), m.id);
+    const isHighlight = m.kind === "highlight" || (m.kind === "stroke" && m.tool === "marker");
+    if (patch.color && !isHighlight && patch.color.toLowerCase() !== next.color.toLowerCase()) next = { ...next, color: patch.color };
+    if (patch.highlight && isHighlight && patch.highlight.toLowerCase() !== next.color.toLowerCase()) next = { ...next, color: patch.highlight };
+    if (patch.width !== undefined && "width" in next && patch.width !== next.width) next = { ...next, width: patch.width };
+    if (patch.opacity !== undefined && next.kind !== "text" && next.kind !== "step" && patch.opacity !== (next.opacity ?? (next.kind === "highlight" ? 0.55 : 1))) next = { ...next, opacity: patch.opacity };
+    if (patch.fillShape !== undefined && (next.kind === "box" || next.kind === "ellipse") && patch.fillShape !== !!next.fill) next = { ...next, fill: patch.fillShape };
+    if (patch.textSize && next.kind === "text" && patch.textSize !== next.size) next = { ...next, size: patch.textSize };
+    if (patch.stepSize && next.kind === "step" && patch.stepSize !== next.size) next = { ...next, size: patch.stepSize };
+    if (next !== m) {
+      const gestureStart = optionsGesture.current;
+      setHist((h) => h && commit(h, { ...h.present, marks: h.present.marks.map((x) => x.id === m.id ? next : x) }, gestureStart));
+    }
   };
 
   const fill = async (r: Rect) => {
-    const b = base.current;
-    if (!b) return;
+    if (!doc || !renderer.current || busy) return;
+    const b = flatten(renderer.current.render(doc.ops), doc.marks);
     const region = intersect({ x: r.x - 4, y: r.y - 4, w: r.w + 8, h: r.h + 8 }, { x: 0, y: 0, w: b.width, h: b.height })!;
     const hole = { x: r.x - region.x, y: r.y - region.y, w: r.w, h: r.h };
     setBusy(t("ed.working"));
@@ -234,8 +281,8 @@ export function Editor() {
   };
 
   const applySize = async (w: number, h: number, mode: "resize" | "fit", bg: number[]) => {
-    const b = base.current;
-    if (!b) return;
+    if (!doc || !renderer.current || busy) return;
+    const b = flatten(renderer.current.render(doc.ops), doc.marks);
     setBusy(t("ed.working"));
     try {
       const buf = await editorApi.resize(rgbaOf(b), b.width, b.height, w, h, mode, bg);
@@ -250,8 +297,9 @@ export function Editor() {
   };
 
   const applyCrop = () => {
+    if (busy) return;
     if (crop && doc && (crop.w !== doc.width || crop.h !== doc.height || crop.x || crop.y)) {
-      applyOp({ kind: "crop", rect: crop });
+      applyOp({ kind: "crop", rect: fitCrop(crop, { w: doc.width, h: doc.height }, cropRatio) });
       autoFit.current = true;
     }
     setTool("select");
@@ -260,12 +308,12 @@ export function Editor() {
   // ---- output ----
 
   const finalImage = () => {
-    const flat = flatten(base.current!, doc!.marks);
+    const flat = flatten(renderer.current!.render(doc!.ops), doc!.marks);
     return { rgba: rgbaOf(flat), w: flat.width, h: flat.height };
   };
 
   const save = async (): Promise<boolean> => {
-    if (!doc || !base.current) return false;
+    if (!doc || !base.current || busy) return false;
     setBusy(t("ed.working"));
     try {
       const { rgba, w, h } = finalImage();
@@ -285,7 +333,8 @@ export function Editor() {
   };
 
   const saveAs = async () => {
-    if (!doc) return;
+    if (!doc || busy) return;
+    setBusy(t("ed.working"));
     try {
       const { rgba, w, h } = finalImage();
       const name = (info?.name ?? "Screenshot").replace(/\.[a-z]+$/i, "") + "." + (format === "jpeg" ? "jpg" : format);
@@ -293,29 +342,37 @@ export function Editor() {
       if (path) toast({ text: t("ed.saved") }, 2000);
     } catch (e) {
       fail(e);
+    } finally {
+      setBusy(null);
     }
   };
 
   const copy = async () => {
-    if (!doc) return;
+    if (!doc || busy) return;
+    setBusy(t("ed.working"));
     try {
       const { rgba, w, h } = finalImage();
       await editorApi.copy(rgba, w, h);
       toast({ text: t("ed.copied") }, 1600);
     } catch (e) {
       fail(e);
+    } finally {
+      setBusy(null);
     }
   };
 
   const revert = async () => {
     const id = info?.shot?.id;
-    if (!id) return;
+    if (!id || busy) return;
+    setBusy(t("ed.working"));
     try {
       await editorApi.revert(id);
       await load(`shot:${id}`);
       toast({ text: t("ed.reverted") }, 2000);
     } catch (e) {
       fail(e);
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -354,7 +411,7 @@ export function Editor() {
 
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
-    if ((e.target as HTMLElement).matches("input, textarea, select") || closing || !doc) return;
+    if ((e.target as HTMLElement).matches("input, textarea, select, [contenteditable=true]") || closing || busy || !doc) return;
     const ctrl = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     if (ctrl && k === "z" && !e.shiftKey) setHist((h) => h && undo(h));
@@ -380,8 +437,9 @@ export function Editor() {
     } else if (k === "+" || k === "=") zoomTo(view.zoom * 1.25);
     else if (k === "-") zoomTo(view.zoom / 1.25);
     else {
-      const found = [...TOOLS, ...MARK_TOOLS].find((x) => x.key === k);
+      const found = [...TOOLS, ...DRAW_TOOLS, ...MARK_TOOLS].find((x) => x.key === k);
       if (found) setTool(found.id);
+      else if (k === "j") setTool("marker");
       else return;
     }
     e.preventDefault();
@@ -408,23 +466,27 @@ export function Editor() {
   }
 
   const zoomPct = Math.round(view.zoom * dpr * 100);
-  const toolButton = (x: { id: Tool; icon: LucideIcon }) => (
-    <button key={x.id} className={`ed-tool${tool === x.id ? " on" : ""}`} title={t(`ed.tool.${x.id}` as Key)} aria-pressed={tool === x.id} onClick={() => setTool(x.id)}>
+  const toolButton = (x: { id: Tool; icon: LucideIcon }, labelled = false) => (
+    <button key={x.id} className={`ed-tool${labelled ? " ed-draw-tool" : ""}${tool === x.id ? " on" : ""}`} title={t(`ed.tool.${x.id}` as Key)} aria-label={t(`ed.tool.${x.id}` as Key)} aria-pressed={tool === x.id} disabled={!!busy} onClick={() => setTool(x.id)}>
       <x.icon size={18} />
+      {labelled && <span>{t(`ed.tool.${x.id}` as Key).replace(/\s*\(.*\)$/, "")}</span>}
     </button>
   );
 
   return (
     <div className="ed">
       <header className="ed-top">
-        <div className="ed-group">{TOOLS.map(toolButton)}</div>
+        <div className="ed-group ed-tools-primary">{TOOLS.map((x) => toolButton(x))}</div>
         <span className="ed-sep" />
-        <div className="ed-group">{MARK_TOOLS.map(toolButton)}</div>
+        <div className="ed-group ed-tools-brushes">{DRAW_TOOLS.map((x) => toolButton(x, true))}</div>
         <span className="ed-sep" />
-        <button className="icon-btn" title={t("ed.undo")} disabled={!hist?.past.length} onClick={() => setHist((h) => h && undo(h))}>
+        <div className="ed-group ed-tools-drawing">{MARK_TOOLS.map((x) => toolButton(x))}</div>
+        <span className="ed-sep" />
+        <div className="ed-top-actions">
+        <button className="icon-btn" title={t("ed.undo")} aria-label={t("ed.undo")} disabled={!!busy || !hist?.past.length} onClick={() => setHist((h) => h && undo(h))}>
           <Undo2 size={17} />
         </button>
-        <button className="icon-btn" title={t("ed.redo")} disabled={!hist?.future.length} onClick={() => setHist((h) => h && redo(h))}>
+        <button className="icon-btn" title={t("ed.redo")} aria-label={t("ed.redo")} disabled={!!busy || !hist?.future.length} onClick={() => setHist((h) => h && redo(h))}>
           <Redo2 size={17} />
         </button>
         <span style={{ flex: 1 }} />
@@ -443,15 +505,16 @@ export function Editor() {
           </button>
         </div>
         <span className="ed-sep" />
-        <button className="icon-btn" title={t("ed.copy")} aria-label={t("ed.copy")} onClick={copy}>
+        <button className="icon-btn" title={t("ed.copy")} aria-label={t("ed.copy")} disabled={!!busy} onClick={copy}>
           <Copy size={17} />
         </button>
-        <button className="icon-btn" title={t("ed.saveAs")} aria-label={t("ed.saveAs")} onClick={saveAs}>
+        <button className="icon-btn" title={t("ed.saveAs")} aria-label={t("ed.saveAs")} disabled={!!busy} onClick={saveAs}>
           <Download size={17} />
         </button>
         <button className="btn btn-primary" onClick={save} disabled={!!busy}>
           {t("ed.save")}
         </button>
+        </div>
       </header>
 
       <div className="ed-body">
@@ -461,6 +524,11 @@ export function Editor() {
           doc={doc}
           tool={tool}
           opts={opts}
+          disabled={!!busy}
+          onPickColor={(color) => {
+            setOpts((o) => ({ ...o, color, highlight: color }));
+            setTool(lastDrawingTool.current);
+          }}
           view={view}
           onView={(v) => {
             autoFit.current = false;
@@ -481,37 +549,43 @@ export function Editor() {
           }}
         />
         <aside className="ed-side">
+          <fieldset className="ed-side-controls" disabled={!!busy}>
+          <div
+            className="ed-inspector"
+            onPointerDownCapture={beginOptions}
+            onPointerUp={endOptions}
+            onPointerCancel={endOptions}
+            onFocusCapture={beginOptions}
+            onBlur={endOptions}
+            onKeyDownCapture={(e) => { if (e.target instanceof HTMLInputElement && e.target.type === "range") beginOptions(); }}
+            onKeyUp={(e) => { if (e.target instanceof HTMLInputElement && e.target.type === "range") endOptions(); }}
+          >
           <ToolOptions
             tool={tool}
             opts={opts}
             onOpts={onOpts}
             selectedMark={selectedMark}
             crop={crop}
-            onCrop={setCrop}
+            onCrop={(r) => setCrop(fitCrop(r, { w: doc.width, h: doc.height }, cropRatio))}
             cropRatio={cropRatio}
             onCropRatio={(r) => {
               setCropRatio(r);
               if (r && crop && doc) {
-                // Fit the biggest box of that ratio, centred in the current one.
-                let w = crop.w;
-                let h = Math.round(w / r);
-                if (h > crop.h) {
-                  h = crop.h;
-                  w = Math.round(h * r);
-                }
-                setCrop({ x: Math.round(crop.x + (crop.w - w) / 2), y: Math.round(crop.y + (crop.h - h) / 2), w, h });
+                setCrop(fitCrop(crop, { w: doc.width, h: doc.height }, r));
               }
             }}
             onApplyCrop={applyCrop}
             onCancelCrop={() => setTool("select")}
             docSize={{ w: doc.width, h: doc.height }}
           />
+          </div>
           <PrivacyPanel
             base={base.current}
             version={version}
             open={START_PANEL === "privacy"}
             onHide={(rects, style) => {
               let next = hist!.present;
+              if (next.marks.length) next = withOp(next, { kind: "rasterize", marks: next.marks });
               for (const rect of rects) next = withOp(next, { kind: "hide", rect, style, strength: Math.max(14, opts.strength) });
               setHist((h) => h && commit(h, next));
             }}
@@ -523,6 +597,7 @@ export function Editor() {
               <RotateCcw size={15} /> {t("ed.revert")}
             </button>
           )}
+          </fieldset>
         </aside>
       </div>
 

@@ -1,6 +1,6 @@
 // Typed wrappers around the Rust commands, plus the shapes they return.
 
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
@@ -126,8 +126,9 @@ export type CardPayload =
 /** URL of something served by the app's `shot://` protocol. (In a plain
  *  browser during development, dev/mock.ts points this at fake images.) */
 export function shotUrl(path: string): string {
-  const base = (globalThis as { __SHOT_BASE__?: string }).__SHOT_BASE__ ?? "http://shot.localhost/";
-  return `${base}${path}`;
+  const override = (globalThis as { __SHOT_BASE__?: string }).__SHOT_BASE__;
+  const base = override ?? convertFileSrc("", "shot");
+  return `${base.replace(/\/?$/, "/")}${path.replace(/^\//, "")}`;
 }
 
 export const thumbUrl = (s: Shot) => shotUrl(`thumb/${s.id}?v=${s.rev}`);

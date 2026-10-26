@@ -41,6 +41,21 @@ binaries. The [maintainer guide](docs/MAINTAINING.md) describes the release
 review. A package's absence from this short overview does not remove its
 license requirements.
 
+## Bundled offline models and OCR runtime
+
+- The Tesseract fast language models (English, Russian, Uzbek Latin and Uzbek
+  Cyrillic) are preserved unmodified under Apache-2.0 in
+  [`desktop/ocr-data/`](desktop/ocr-data/), with their upstream license, source
+  commit and SHA-256 digests.
+- macOS and Linux face detection uses rustface and the SeetaFace model. Its
+  BSD-2-Clause notice and source commit are included in
+  [`desktop/src-tauri/models/`](desktop/src-tauri/models/).
+- The Tesseract.js and Tesseract.js-core versions are pinned in `pnpm-lock.yaml`.
+  They execute locally; their upstream Apache-2.0 terms and any accompanying
+  native-library notices apply to the WASM runtime.
+- Linux accessibility uses the system AT-SPI library under its LGPL terms.
+  macOS accessibility uses Apple's system frameworks.
+
 ## Windows components
 
 Windows OCR, system fonts and UI Automation are provided by Windows. WebView2

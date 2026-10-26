@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AlgorithShot",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "identifier": "com.algorithco.shot",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -15,8 +15,8 @@
     "security": {
       "csp": {
         "default-src": "'self' ipc: http://ipc.localhost",
-        "img-src": "'self' data: blob: http://shot.localhost",
-        "connect-src": "'self' ipc: http://ipc.localhost http://shot.localhost",
+        "img-src": "'self' data: blob: shot: http://shot.localhost",
+        "connect-src": "'self' ipc: shot: http://ipc.localhost http://shot.localhost",
         "style-src": "'self' 'unsafe-inline'",
         "font-src": "'self' data:",
         "script-src": "'self' 'wasm-unsafe-eval'",

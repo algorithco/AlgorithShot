@@ -8,6 +8,7 @@ import type { Pt } from "../shared/geometry";
 
 export type HideStyle = "pixelate" | "blur" | "solid";
 export type Axis = "horizontal" | "vertical";
+export type StrokeTool = "pen" | "pencil" | "marker";
 
 /** How a resize or fit maps old pixels to new: new = old * s + o. */
 export type Mapping = { sx: number; sy: number; ox: number; oy: number };
@@ -19,12 +20,16 @@ export type Op =
   | { kind: "patch"; at: Pt; image: ImageBitmap }
   | { kind: "cut"; axis: Axis; from: number; to: number }
   | { kind: "hide"; rect: Rect; style: HideStyle; strength: number }
+  | { kind: "rasterize"; marks: Mark[] }
   | { kind: "replace"; image: ImageBitmap; map: Mapping };
 
 export type Mark =
-  | { id: string; kind: "arrow"; a: Pt; b: Pt; color: string; width: number }
-  | { id: string; kind: "box"; rect: Rect; color: string; width: number }
-  | { id: string; kind: "highlight"; rect: Rect; color: string }
+  | { id: string; kind: "arrow"; a: Pt; b: Pt; color: string; width: number; opacity?: number }
+  | { id: string; kind: "line"; a: Pt; b: Pt; color: string; width: number; opacity: number }
+  | { id: string; kind: "stroke"; tool: StrokeTool; points: Pt[]; color: string; width: number; opacity: number }
+  | { id: string; kind: "box"; rect: Rect; color: string; width: number; opacity?: number; fill?: boolean }
+  | { id: string; kind: "ellipse"; rect: Rect; color: string; width: number; opacity: number; fill?: boolean }
+  | { id: string; kind: "highlight"; rect: Rect; color: string; opacity?: number }
   | { id: string; kind: "text"; at: Pt; text: string; color: string; size: number }
   | { id: string; kind: "step"; at: Pt; n: number; color: string; size: number };
 
@@ -36,7 +41,12 @@ export function newHistory(width: number, height: number): History {
   return { past: [], present: { width, height, ops: [], marks: [] }, future: [] };
 }
 
-export function commit(h: History, next: Doc): History {
+/** Continuous inspector changes can share the document at gesture start. */
+export function commit(h: History, next: Doc, gestureStart?: Doc | null): History {
+  if (next === h.present) return h;
+  if (gestureStart && h.past[h.past.length - 1] === gestureStart) {
+    return { ...h, present: next, future: [] };
+  }
   return { past: [...h.past.slice(-99), h.present], present: next, future: [] };
 }
 
@@ -95,8 +105,12 @@ export function moveMarks(marks: Mark[], op: Op): Mark[] {
   return marks.map((m): Mark => {
     switch (m.kind) {
       case "arrow":
+      case "line":
         return { ...m, a: movePoint(m.a, op), b: movePoint(m.b, op), width: m.width * s };
+      case "stroke":
+        return { ...m, points: m.points.map((p) => movePoint(p, op)), width: m.width * s };
       case "box":
+      case "ellipse":
         return { ...m, rect: moveRect(m.rect, op), width: m.width * s };
       case "highlight":
         return { ...m, rect: moveRect(m.rect, op) };
@@ -110,7 +124,7 @@ export function moveMarks(marks: Mark[], op: Op): Mark[] {
 /** A new document with `op` applied: size and marks updated. */
 export function withOp(doc: Doc, op: Op): Doc {
   const { w, h } = sizeAfter(doc.width, doc.height, op);
-  return { width: w, height: h, ops: [...doc.ops, op], marks: moveMarks(doc.marks, op) };
+  return { width: w, height: h, ops: [...doc.ops, op], marks: op.kind === "rasterize" ? [] : moveMarks(doc.marks, op) };
 }
 
 let nextId = 1;
@@ -133,12 +147,51 @@ function hitMark(m: Mark, p: Pt, slack: number): boolean {
   switch (m.kind) {
     case "arrow":
       return distToSegment(p, m.a, m.b) <= Math.max(slack, m.width);
+    case "line":
+      return distToSegment(p, m.a, m.b) <= slack + m.width / 2;
+    case "stroke": {
+      const radius = slack + m.width / 2;
+      if (m.points.length === 1) return Math.hypot(p.x - m.points[0].x, p.y - m.points[0].y) <= radius;
+      if (!m.points.length) return false;
+      if (m.tool === "pencil" || m.points.length === 2) return m.points.some((point, i) => i > 0 && distToSegment(p, m.points[i - 1], point) <= radius);
+      let start = m.points[0];
+      for (let i = 1; i < m.points.length - 1; i++) {
+        const control = m.points[i];
+        const next = m.points[i + 1];
+        const end = { x: (control.x + next.x) / 2, y: (control.y + next.y) / 2 };
+        // Follow the same midpoint curves as the renderer. Testing the raw
+        // sample segments would select empty corners of a smoothed stroke.
+        const steps = Math.max(4, Math.min(32, Math.ceil((Math.hypot(control.x - start.x, control.y - start.y) + Math.hypot(end.x - control.x, end.y - control.y)) / 4)));
+        let previous = start;
+        for (let j = 1; j <= steps; j++) {
+          const t = j / steps;
+          const u = 1 - t;
+          const point = { x: u * u * start.x + 2 * u * t * control.x + t * t * end.x, y: u * u * start.y + 2 * u * t * control.y + t * t * end.y };
+          if (distToSegment(p, previous, point) <= radius) return true;
+          previous = point;
+        }
+        start = end;
+      }
+      return distToSegment(p, start, m.points[m.points.length - 1]) <= radius;
+    }
+    case "ellipse": {
+      const rx = m.rect.w / 2;
+      const ry = m.rect.h / 2;
+      if (rx <= 0 || ry <= 0) return false;
+      const dx = p.x - m.rect.x - rx;
+      const dy = p.y - m.rect.y - ry;
+      const padding = slack + m.width / 2;
+      const outer = (dx / (rx + padding)) ** 2 + (dy / (ry + padding)) ** 2 <= 1;
+      if (m.fill || rx <= padding || ry <= padding) return outer;
+      return outer && (dx / (rx - padding)) ** 2 + (dy / (ry - padding)) ** 2 >= 1;
+    }
     case "box":
     case "highlight": {
       const r = m.rect;
-      const inside = p.x >= r.x - slack && p.x <= r.x + r.w + slack && p.y >= r.y - slack && p.y <= r.y + r.h + slack;
-      if (m.kind === "highlight") return inside;
-      const innerHit = p.x > r.x + slack && p.x < r.x + r.w - slack && p.y > r.y + slack && p.y < r.y + r.h - slack;
+      const padding = m.kind === "box" ? slack + m.width / 2 : slack;
+      const inside = p.x >= r.x - padding && p.x <= r.x + r.w + padding && p.y >= r.y - padding && p.y <= r.y + r.h + padding;
+      if (m.kind === "highlight" || m.fill) return inside;
+      const innerHit = p.x > r.x + padding && p.x < r.x + r.w - padding && p.y > r.y + padding && p.y < r.y + r.h - padding;
       return inside && !innerHit;
     }
     case "text": {
@@ -164,8 +217,12 @@ export function distToSegment(p: Pt, a: Pt, b: Pt): number {
 export function shiftMark(m: Mark, dx: number, dy: number): Mark {
   switch (m.kind) {
     case "arrow":
+    case "line":
       return { ...m, a: { x: m.a.x + dx, y: m.a.y + dy }, b: { x: m.b.x + dx, y: m.b.y + dy } };
+    case "stroke":
+      return { ...m, points: m.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
     case "box":
+    case "ellipse":
     case "highlight":
       return { ...m, rect: { ...m.rect, x: m.rect.x + dx, y: m.rect.y + dy } };
     case "text":
@@ -176,13 +233,13 @@ export function shiftMark(m: Mark, dx: number, dy: number): Mark {
 
 /** Grab points of a mark: box corners and sides, arrow ends. */
 export function markHandles(m: Mark): { id: string; at: Pt }[] {
-  if (m.kind === "arrow") {
+  if (m.kind === "arrow" || m.kind === "line") {
     return [
       { id: "a", at: m.a },
       { id: "b", at: m.b },
     ];
   }
-  if (m.kind === "box" || m.kind === "highlight") {
+  if (m.kind === "box" || m.kind === "highlight" || m.kind === "ellipse") {
     const { x, y, w, h } = m.rect;
     return [
       { id: "nw", at: { x, y } },
@@ -206,8 +263,8 @@ export function handleOfMark(m: Mark, p: Pt, radius: number): string | null {
 
 /** The mark with one handle dragged to `p`. */
 export function reshapeMark(m: Mark, handle: string, p: Pt): Mark {
-  if (m.kind === "arrow") return handle === "a" ? { ...m, a: p } : { ...m, b: p };
-  if (m.kind === "box" || m.kind === "highlight") {
+  if (m.kind === "arrow" || m.kind === "line") return handle === "a" ? { ...m, a: p } : { ...m, b: p };
+  if (m.kind === "box" || m.kind === "highlight" || m.kind === "ellipse") {
     let x0 = m.rect.x;
     let y0 = m.rect.y;
     let x1 = m.rect.x + m.rect.w;

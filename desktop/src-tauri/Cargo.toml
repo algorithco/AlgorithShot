@@ -1,7 +1,7 @@
 [package]
 name = "algorithco-shot"
-version = "0.1.2"
-description = "An offline Windows screenshot app with OCR search and privacy tools"
+version = "0.2.0"
+description = "Offline screenshots, OCR search and privacy tools for Windows, macOS and Linux"
 authors = ["Algorithco and contributors"]
 license = "MIT"
 repository = "https://github.com/algorithco/AlgorithShot"

@@ -49,7 +49,10 @@ export function prettyKey(key: string): string {
     .split("+")
     .map((k) => {
       if (k === "PrintScreen") return "Print Screen";
-      if (k === "Super") return /Mac/.test(navigator.platform) ? "Cmd" : /Win/.test(navigator.platform) ? "Win" : "Super";
+      if (k === "Super") {
+        const platform = typeof navigator === "undefined" ? "" : navigator.platform;
+        return /Mac/.test(platform) ? "Cmd" : /Win/.test(platform) ? "Win" : "Super";
+      }
       if (/^Key[A-Z]$/.test(k)) return k.slice(3);
       if (/^Digit\d$/.test(k)) return k.slice(5);
       if (k.startsWith("Arrow")) return k.slice(5);

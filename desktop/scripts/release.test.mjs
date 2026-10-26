@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createUpdateManifest, localBuildOptions, updaterBuildConfig, validateRelease } from "./release.mjs";
+import { createPlatformUpdateManifest, createUpdateManifest, localBuildOptions, updaterBuildConfig, validateRelease, validateReleaseMetadata } from "./release.mjs";
 
 function options() {
   return {
@@ -87,6 +87,7 @@ test("local builds work without private credentials and disable update distribut
 test("inherited release credentials and config cannot leak into a Windows local build", () => {
   const inherited = {
     TAURI_SIGNING_PRIVATE_KEY: "test-private-key-path",
+    TAURI_SIGNING_PRIVATE_KEY_PATH: "test-private-file-path",
     tauri_signing_private_key_password: "test-password",
     tauri_updater_public_key: "different-public-key",
     Tauri_Config: "test-release-config",
@@ -101,4 +102,39 @@ test("inherited release credentials and config cannot leak into a Windows local 
 test("local builds reject a missing public key even if an environment override exists", () => {
   assert.throws(() => localBuildOptions({}, { TAURI_UPDATER_PUBLIC_KEY: "environment-key" }), /public key/);
   assert.throws(() => localBuildOptions({ plugins: { updater: { pubkey: "  " } } }, {}), /public key/);
+});
+
+function allPlatforms() {
+  return {
+    "windows-x86_64": { name: "AlgorithShot_0.2.0_x64-setup.exe", signature: "windows-signature" },
+    "linux-x86_64": { name: "AlgorithShot_0.2.0_amd64.AppImage", signature: "linux-signature" },
+    "darwin-x86_64": { name: "AlgorithShot_0.2.0_universal.app.tar.gz", signature: "mac-signature" },
+    "darwin-aarch64": { name: "AlgorithShot_0.2.0_universal.app.tar.gz", signature: "mac-signature" },
+  };
+}
+
+test("build metadata validation needs no private signing material", () => {
+  assert.equal(validateReleaseMetadata({ ...options(), env: undefined }).tag, "v0.2.0");
+});
+
+test("a complete update feed supports Windows, Linux and both Mac architectures", () => {
+  const manifest = createPlatformUpdateManifest(validateReleaseMetadata(options()), allPlatforms());
+  assert.deepEqual(Object.keys(manifest.platforms).sort(), ["darwin-aarch64", "darwin-x86_64", "linux-x86_64", "windows-x86_64"]);
+  assert.match(manifest.platforms["linux-x86_64"].url, /algorith-shot-releases\/releases\/download\/v0\.2\.0\//);
+  assert.equal(manifest.platforms["darwin-aarch64"].url, manifest.platforms["darwin-x86_64"].url);
+});
+
+test("a release feed cannot omit a supported platform or use an unsigned, wrong-version or wrong-type artifact", () => {
+  const release = validateReleaseMetadata(options());
+  const missing = allPlatforms();
+  delete missing["linux-x86_64"];
+  assert.throws(() => createPlatformUpdateManifest(release, missing), /linux-x86_64/);
+  for (const name of ["../AlgorithShot_0.2.0_x64-setup.exe", "AlgorithShot_0.1.2_x64-setup.exe", "AlgorithShot_0.2.0_universal.dmg"]) {
+    const artifacts = allPlatforms();
+    artifacts["windows-x86_64"].name = name;
+    assert.throws(() => createPlatformUpdateManifest(release, artifacts), /windows-x86_64/);
+  }
+  const unsigned = allPlatforms();
+  unsigned["darwin-aarch64"].signature = " ";
+  assert.throws(() => createPlatformUpdateManifest(release, unsigned), /darwin-aarch64/);
 });

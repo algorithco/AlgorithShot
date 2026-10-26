@@ -1,6 +1,6 @@
 # AlgorithShot
 
-A Windows screenshot app that captures exactly what you need, finds it again in
+A screenshot app for Windows, macOS and Linux X11 that captures exactly what you need, finds it again in
 seconds, and helps you share it safely. Free, offline, in English, Uzbek and
 Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
 
@@ -10,11 +10,11 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
   screen. Drag a region, click a window, capture the full screen or a fixed size,
   or use a timer. With **Highlight the window under the pointer** turned on in
   Settings, a click in Region mode also captures a window or a part of it
-  (buttons, panels, messages via UI Automation). Letting go copies the capture at
+  (buttons, panels and messages via the platform accessibility API). Letting go copies the capture at
   once; hold Ctrl to adjust it first with the live size in real pixels, arrow-key
   nudging and typed sizes. Change hotkeys in Settings; upgrades preserve saved
   bindings.
-- **Screen tools**: copy text from anything on screen (Windows OCR): the screen
+- **Screen tools**: copy text from anything on screen with offline OCR: the screen
   stays frozen and you pick the words right there. Scan QR codes and barcodes,
   pick colours, measure with the ruler, pin a capture on top.
 - **Quick card** after each capture: edit, save as, pin, send to Telegram, copy,
@@ -28,7 +28,7 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
   goes to the Recycle Bin with undo; the clean-up page finds duplicates and
   old or large files.
 
-Nothing is uploaded. Screenshots are saved to `Pictures\AlgorithShot`
+Nothing is uploaded. Screenshots are saved to your `Pictures/AlgorithShot` folder
 (or `%USERPROFILE%\Pictures\AlgorithShot` when Pictures is in OneDrive).
 Saved screenshots stay on disk after uninstalling the app, including when
 the uninstaller's **Remove settings and the library index** option is selected. Untouched originals
@@ -46,8 +46,8 @@ launch after an upgrade.
 
 ## Develop
 
-Run these commands from `desktop/`. Needs Node 24.13+, pnpm, Rust (MSVC) and
-the Visual Studio C++ build tools. The repository root also exposes desktop
+Run these commands from `desktop/`. Needs Node 24.13+, pnpm, Rust and the
+platform tools listed in [CONTRIBUTING.md](../CONTRIBUTING.md). The repository root also exposes desktop
 and API commands; see [the workspace README](../README.md).
 
 ```bash
@@ -56,8 +56,9 @@ pnpm tauri dev        # run the app
 pnpm dev              # pages only, in a browser, with fake data (src/dev/mock.ts)
 pnpm test             # frontend tests
 cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust tests, incl. Windows OCR and a real screen grab
-pnpm build:local      # standalone Windows executable; no private key needed
-pnpm release:build    # maintainer-only signed installer + latest.json
+pnpm build:local      # standalone native executable; no private key needed
+pnpm test:ocr         # offline English/Russian/Uzbek recognition
+pnpm release:build    # unsigned installers for maintainer review
 powershell -File dev/test-uninstall-storage.ps1 # isolated NSIS image-preservation test (requires NSIS from a Tauri build)
 ```
 
@@ -73,6 +74,7 @@ Command-line actions (also sent to the running app): `--capture [mode]`,
 src-tauri/src/
   capture.rs   screen grab, capture sessions, what happens after a capture
   win.rs       monitors, windows, DPI (Win32)
+  platform/    macOS/Linux capture, clipboard, shortcuts, icons and accessibility
   imaging.rs   crop, encode, optimize, resize, fit, smart fill
   library.rs   SQLite index and full-text search
   shots.rs     saving, naming, Recycle Bin delete and undo, edits, clean-up
@@ -86,15 +88,28 @@ src/
   editor/      editor (document model, renderer, stage, panels)
   library/     library, clean-up, settings, welcome
   pin/         pinned screenshots
+  ocr/         hidden offline WASM worker for macOS/Linux
   shared/      API types, translations (en, uz, ru), styles, UI pieces
 ```
 
-In-app update setup, signed local release builds, and publishing instructions are
+In-app update setup, multi-platform release builds, signing and publishing instructions are
 in [docs/UPDATES.md](docs/UPDATES.md). The app checks for updates automatically;
 installation starts when the user clicks the banner. Local standalone builds
 disable update checks. Their executables are under
 `src-tauri/target/local/release/`, or `src-tauri/target/local/debug/` when built
 with `pnpm build:local --debug`.
+
+## Platform permissions
+
+On macOS, allow Screen Recording for capture and Accessibility for element
+snapping and browser context in System Settings > Privacy & Security.
+Windows uses installed OCR language packs. macOS and Linux ship offline English,
+Russian, Uzbek Latin and Uzbek Cyrillic models and a local face detector.
+
+Linux's complete capture, window selection and global shortcuts require an
+X11 session. Use a desktop with a system tray/AppIndicator for the tray menu.
+Wayland compositor restrictions prevent the same window and shortcut access;
+Wayland is outside the supported full-feature desktop configuration.
 
 ## License
 

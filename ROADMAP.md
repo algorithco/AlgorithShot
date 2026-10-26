@@ -1,7 +1,7 @@
 # Roadmap
 
 AlgorithShot focuses on fast, offline screenshot capture, local search and
-safe sharing on Windows. This is a list of priorities, not release dates.
+safe sharing on Windows, macOS and Linux X11. This is a list of priorities, not release dates.
 Discuss substantial changes in an issue before implementing them.
 
 ## Current priorities
@@ -32,5 +32,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 Accounts, uploads and cloud synchronization require separate product and
 privacy decisions. The current API exposes health and service information;
-it does not implement those features. Native macOS and Linux apps would need
-platform-specific capture, OCR and window-management implementations.
+it does not implement those features. Wider Wayland support needs compositor
+and portal integration for capture, window selection and global shortcuts.

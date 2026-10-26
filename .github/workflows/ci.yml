@@ -69,9 +69,10 @@ jobs:
           version: 10.29.3
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
+        timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev xvfb dbus-x11
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Lock::Timeout=120 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev xvfb dbus-x11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -92,16 +93,16 @@ jobs:
         working-directory: desktop/src-tauri
         # Tests that need a real screen or Windows' OCR languages run on a PC only.
         run: cargo test --lib --locked --features tauri/custom-protocol -- --skip live_tests --skip grabs_the_main_monitor
-      - name: Verify offline OCR in the macOS webview
+      - name: Verify native macOS OCR, clipboard and face model
         if: matrix.platform == 'macos'
         timeout-minutes: 4
-        run: desktop/src-tauri/target/local/debug/algorithco-shot --verify-ocr
-      - name: Verify offline OCR in the Linux webview
+        run: desktop/src-tauri/target/local/debug/algorithco-shot --verify-platform
+      - name: Verify native Linux OCR, clipboard, face model and X11 capture
         if: matrix.platform == 'linux'
         timeout-minutes: 4
         env:
           WEBKIT_DISABLE_COMPOSITING_MODE: '1'
-        run: xvfb-run -a dbus-run-session -- desktop/src-tauri/target/local/debug/algorithco-shot --verify-ocr
+        run: xvfb-run -a dbus-run-session -- desktop/src-tauri/target/local/debug/algorithco-shot --verify-platform
       - name: Check native installer UI
         if: matrix.platform == 'windows'
         run: powershell -NoProfile -File desktop/dev/build-installer-ui.ps1

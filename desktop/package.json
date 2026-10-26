@@ -2,13 +2,13 @@
   "name": "@algorithco/shot-desktop",
   "private": true,
   "license": "MIT",
-  "description": "AlgorithShot Windows desktop app",
+  "description": "Offline screenshots, OCR search and privacy tools for Windows, macOS and Linux",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/algorithco/AlgorithShot.git",
     "directory": "desktop"
   },
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/prepare-ocr.mjs && vite",
@@ -20,6 +20,8 @@
     "test:ocr": "node --test scripts/ocr.test.mjs",
     "typecheck": "tsc --noEmit",
     "release:build": "node scripts/build-release.mjs",
+    "release:build:unsigned": "node scripts/build-platform.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs",
     "test:release": "node --test scripts/release.test.mjs"
   },
   "dependencies": {

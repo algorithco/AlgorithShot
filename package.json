@@ -2,7 +2,7 @@
   "name": "algorithco-shot",
   "private": true,
   "license": "MIT",
-  "description": "An offline Windows screenshot app with OCR search and privacy tools",
+  "description": "Offline screenshots, OCR search and privacy tools for Windows, macOS and Linux",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/algorithco/AlgorithShot.git"
@@ -26,6 +26,8 @@
     "test": "pnpm -r test",
     "test:ocr": "pnpm --dir desktop test:ocr",
     "test:release": "pnpm --dir desktop test:release",
-    "release:build": "pnpm --dir desktop release:build"
+    "release:build": "pnpm --dir desktop release:build",
+    "release:build:unsigned": "pnpm --dir desktop release:build:unsigned",
+    "release:prepare": "pnpm --dir desktop release:prepare"
   }
 }

@@ -11,17 +11,22 @@ import {
   type PointerEvent as RPointerEvent,
   type WheelEvent as RWheelEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import type { Rect } from "../shared/api";
-import { contains, fromPoints, handleAt, intersect, keepInside, resize, type Handle, type Pt } from "../shared/geometry";
+import { useT } from "../shared/i18n";
+import { contains, fromPoints, handleAt, intersect, type Handle, type Pt } from "../shared/geometry";
+import { dragCrop } from "./crop";
 import { handleOfMark, markAt, markHandles, markId, nextStep, reshapeMark, shiftMark, type Axis, type Doc, type HideStyle, type Mark, type Op } from "./doc";
-import { drawMark, drawMarks, markBounds, MARK_FONT } from "./render";
+import { drawMark, drawMarks, flatten, markBounds, MARK_FONT } from "./render";
 
-export type Tool = "select" | "crop" | "erase" | "fill" | "cut" | "hide" | "arrow" | "box" | "highlight" | "text" | "step";
+export type Tool = "select" | "crop" | "erase" | "fill" | "cut" | "hide" | "pen" | "pencil" | "marker" | "line" | "ellipse" | "eyedropper" | "arrow" | "box" | "highlight" | "text" | "step";
 
 export type Options = {
   color: string;
   highlight: string;
   width: number;
+  opacity: number;
+  fillShape: boolean;
   hide: HideStyle;
   strength: number;
   eraseMode: "box" | "brush";
@@ -37,8 +42,8 @@ export type View = { zoom: number; x: number; y: number };
 type Drag =
   | { kind: "pan"; sx: number; sy: number; vx: number; vy: number }
   | { kind: "rect"; tool: Tool; start: Pt; now: Pt }
-  | { kind: "line"; start: Pt; now: Pt }
-  | { kind: "stroke"; points: Pt[] }
+  | { kind: "line"; tool: "arrow" | "line"; start: Pt; now: Pt }
+  | { kind: "stroke"; tool: "erase" | "pen" | "pencil" | "marker"; points: Pt[] }
   | { kind: "band"; start: Pt; now: Pt }
   | { kind: "move"; id: string; start: Pt; now: Pt }
   | { kind: "reshape"; id: string; handle: string; orig: Mark; start: Pt; now: Pt }
@@ -64,17 +69,23 @@ type Props = {
   onMarks: (marks: Mark[], select?: string) => void;
   onCursor: (p: Pt | null) => void;
   onStageSize: (w: number, h: number) => void;
+  onPickColor: (color: string) => void;
+  disabled?: boolean;
 };
 
 const TALLY = "#ffd300";
 
-/** Tools where clicking a mark grabs it instead of drawing a new one. */
-const EDITS_MARKS = new Set<Tool>(["select", "arrow", "box", "highlight", "text", "step"]);
+// Drawing tools always draw, including over existing marks.
+const EDITS_MARKS = new Set<Tool>(["select"]);
+const BRUSH_TOOLS = new Set<Tool>(["pen", "pencil", "marker"]);
 
 export function Stage(p: Props) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
+  const pointerId = useRef<number | null>(null);
+  const gestureOpts = useRef(p.opts);
   const cursor = useRef<Pt | null>(null);
   const space = useRef(false);
   const frame = useRef(0);
@@ -125,9 +136,23 @@ export function Stage(p: Props) {
 
   useEffect(requestDraw, [p.version, p.doc, p.tool, p.view, p.selected, p.crop, p.opts, text, requestDraw]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current!;
+    const preventPageZoom = (e: WheelEvent) => e.preventDefault();
+    canvas.addEventListener("wheel", preventPageZoom, { passive: false });
+    return () => canvas.removeEventListener("wheel", preventPageZoom);
+  }, []);
+
+  // Undo, redo, or another document change must not leave a held gesture alive.
+  useEffect(() => { if (drag.current) cancelDrag(); }, [p.doc]);
+
   // Space held = pan with the mouse.
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && drag.current) {
+        cancelDrag();
+        e.preventDefault();
+      }
       if (e.code === "Space" && !(e.target as HTMLElement).matches("input, textarea")) {
         space.current = true;
         setCursorStyle("grab");
@@ -142,16 +167,23 @@ export function Stage(p: Props) {
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    const blur = () => { space.current = false; cancelDrag(); };
+    window.addEventListener("blur", blur);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+      if (frame.current) cancelAnimationFrame(frame.current);
     };
   }, []);
 
   useEffect(() => {
+    cancelDrag();
     setCursorStyle(baseCursor(p.tool));
     setText(null);
   }, [p.tool]);
+
+  useEffect(() => { if (p.disabled) cancelDrag(); }, [p.disabled]);
 
   const textOpen = !!text;
   useEffect(() => {
@@ -184,6 +216,9 @@ export function Stage(p: Props) {
     ctx.save();
     ctx.translate(view.x, view.y);
     ctx.scale(view.zoom, view.zoom);
+    ctx.beginPath();
+    ctx.rect(0, 0, doc.width, doc.height);
+    ctx.clip();
     ctx.imageSmoothingEnabled = view.zoom * dpr < 1; // pixel-exact when zoomed in
     ctx.imageSmoothingQuality = "high";
     if (base) ctx.drawImage(base, 0, 0);
@@ -195,18 +230,18 @@ export function Stage(p: Props) {
         : d?.kind === "reshape"
           ? doc.marks.map((m) => (m.id === d.id ? reshapeMark(d.orig, d.handle, d.now) : m))
           : doc.marks;
-    drawMarks(ctx, marks, text?.id);
-    if (d) drawPreview(ctx, d, opts, doc);
+    drawMarks(ctx, marks, liveText.current?.id);
+    if (d) drawPreview(ctx, d, gestureOpts.current, doc);
     ctx.restore();
 
     // Screen-space overlays.
     if (tool === "crop" && crop) drawCrop(ctx, crop, view, c.width / dpr, c.height / dpr);
     // The selected mark: a dashed outline, and handles to resize it.
     const sel = selected && EDITS_MARKS.has(tool) ? marks.find((x) => x.id === selected) : undefined;
-    if (sel && sel.id !== text?.id) {
+    if (sel && sel.id !== liveText.current?.id) {
       const handles = markHandles(sel);
       ctx.save();
-      if (sel.kind !== "arrow") {
+      if (sel.kind !== "arrow" && sel.kind !== "line") {
         const b = markBounds(sel, ctx);
         const pad = handles.length ? 0 : 5;
         ctx.strokeStyle = TALLY;
@@ -222,7 +257,7 @@ export function Stage(p: Props) {
         ctx.strokeStyle = TALLY;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        if (sel.kind === "arrow") ctx.arc(hx, hy, 6, 0, Math.PI * 2);
+        if (sel.kind === "arrow" || sel.kind === "line") ctx.arc(hx, hy, 6, 0, Math.PI * 2);
         else ctx.rect(hx - 5, hy - 5, 10, 10);
         ctx.fill();
         ctx.stroke();
@@ -230,16 +265,19 @@ export function Stage(p: Props) {
       ctx.restore();
     }
     const cur = cursor.current;
-    if (cur && tool === "erase" && opts.eraseMode === "brush" && !space.current) {
+    const inside = cur && contains({ x: 0, y: 0, w: doc.width, h: doc.height }, cur);
+    props.current.onCursor(inside ? { x: Math.floor(cur.x), y: Math.floor(cur.y) } : null);
+    if (inside && ((tool === "erase" && opts.eraseMode === "brush") || BRUSH_TOOLS.has(tool)) && !space.current) {
+      const diameter = tool === "erase" ? opts.brush : opts.width;
       ctx.save();
       ctx.strokeStyle = "rgba(255,255,255,0.9)";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(view.x + cur.x * view.zoom, view.y + cur.y * view.zoom, (opts.brush / 2) * view.zoom, 0, Math.PI * 2);
+      ctx.arc(view.x + cur.x * view.zoom, view.y + cur.y * view.zoom, Math.max(1, (diameter / 2) * view.zoom), 0, Math.PI * 2);
       ctx.stroke();
       ctx.strokeStyle = "rgba(0,0,0,0.6)";
       ctx.beginPath();
-      ctx.arc(view.x + cur.x * view.zoom, view.y + cur.y * view.zoom, (opts.brush / 2) * view.zoom + 1, 0, Math.PI * 2);
+      ctx.arc(view.x + cur.x * view.zoom, view.y + cur.y * view.zoom, Math.max(1, (diameter / 2) * view.zoom) + 1, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -247,19 +285,49 @@ export function Stage(p: Props) {
 
   // ---- input ----
 
+  function releasePointer() {
+    const id = pointerId.current;
+    pointerId.current = null;
+    if (id !== null && canvasRef.current?.hasPointerCapture(id)) canvasRef.current.releasePointerCapture(id);
+  }
+
+  function cancelDrag() {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.kind === "crop") props.current.onCrop(d.orig);
+    releasePointer();
+    setCursorStyle(baseCursor(props.current.tool));
+    requestDraw();
+  }
+
   function onPointerDown(e: RPointerEvent<HTMLCanvasElement>) {
-    // Keeps focus where it is: a text box that's about to open stays focused.
+    if (props.current.disabled || pointerId.current !== null || !e.isPrimary || (e.button !== 0 && e.button !== 1)) return;
+    // Pointer input is handled here, including focus and text commits.
     e.preventDefault();
-    if (text) commitText();
+    if (text) { commitText(); return; }
+    // Commit numeric/HEX drafts before taking the brush settings snapshot.
+    flushSync(() => canvasRef.current!.focus({ preventScroll: true }));
+    pointerId.current = e.pointerId;
     canvasRef.current!.setPointerCapture(e.pointerId);
     const pt = toImage(e);
     const { tool, doc, view, opts, crop, selected } = props.current;
+    gestureOpts.current = { ...opts };
     if (e.button === 1 || space.current) {
       drag.current = { kind: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
       setCursorStyle("grabbing");
       return;
     }
     if (e.button !== 0) return;
+    if (!contains(bounds(), pt) && tool !== "crop" && tool !== "select") { releasePointer(); return; }
+    if (tool === "eyedropper") {
+      const base = props.current.base;
+      if (base) {
+        const [r, g, b, a] = flatten(base, doc.marks).getContext("2d")!.getImageData(Math.floor(pt.x), Math.floor(pt.y), 1, 1).data;
+        if (a) props.current.onPickColor(`#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`);
+      }
+      releasePointer();
+      return;
+    }
     const slack = 6 / view.zoom;
     if (EDITS_MARKS.has(tool)) {
       const current = doc.marks.find((m) => m.id === selected);
@@ -287,20 +355,29 @@ export function Stage(p: Props) {
       case "crop": {
         const r = crop ?? bounds();
         const h = handleAt(r, pt, 9 / view.zoom);
-        drag.current = { kind: "crop", mode: h ?? (contains(r, pt) ? "move" : "new"), start: pt, orig: r };
+        const full = r.x === 0 && r.y === 0 && r.w === doc.width && r.h === doc.height;
+        drag.current = { kind: "crop", mode: h ?? (!full && contains(r, pt) ? "move" : "new"), start: pt, orig: r };
         break;
       }
       case "erase":
-        drag.current = opts.eraseMode === "brush" ? { kind: "stroke", points: [pt] } : { kind: "rect", tool, start: pt, now: pt };
+        drag.current = opts.eraseMode === "brush" ? { kind: "stroke", tool, points: [pt] } : { kind: "rect", tool, start: pt, now: pt };
+        break;
+      case "pen":
+      case "pencil":
+      case "marker":
+        props.current.onSelect(null);
+        drag.current = { kind: "stroke", tool, points: [pt] };
         break;
       case "fill":
       case "hide":
       case "box":
+      case "ellipse":
       case "highlight":
         drag.current = { kind: "rect", tool, start: pt, now: pt };
         break;
       case "arrow":
-        drag.current = { kind: "line", start: pt, now: pt };
+      case "line":
+        drag.current = { kind: "line", tool, start: pt, now: pt };
         break;
       case "cut":
         drag.current = { kind: "band", start: pt, now: pt };
@@ -318,15 +395,14 @@ export function Stage(p: Props) {
   }
 
   function onPointerMove(e: RPointerEvent<HTMLCanvasElement>) {
+    if (pointerId.current !== null && pointerId.current !== e.pointerId) return;
     const pt = toImage(e);
     cursor.current = pt;
-    const { doc, view } = props.current;
-    const inside = pt.x >= 0 && pt.y >= 0 && pt.x < doc.width && pt.y < doc.height;
-    props.current.onCursor(inside ? { x: Math.floor(pt.x), y: Math.floor(pt.y) } : null);
+    const { view } = props.current;
     const d = drag.current;
     if (!d) {
       hoverCursor(pt);
-      if (props.current.tool === "erase") requestDraw();
+      requestDraw();
       return;
     }
     switch (d.kind) {
@@ -334,14 +410,25 @@ export function Stage(p: Props) {
         props.current.onView({ ...view, x: d.vx + e.clientX - d.sx, y: d.vy + e.clientY - d.sy });
         break;
       case "rect":
+        d.now = e.shiftKey && (d.tool === "box" || d.tool === "ellipse") ? squareEnd(d.start, pt) : pt;
+        break;
       case "line":
+        d.now = e.shiftKey ? snapLine(d.start, pt) : pt;
+        break;
       case "band":
       case "move":
       case "reshape":
         d.now = pt;
         break;
       case "stroke":
-        d.points.push(pt);
+        for (const event of e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent]) {
+          const next = toImage(event);
+          const last = d.points[d.points.length - 1];
+          if (Math.hypot(next.x - last.x, next.y - last.y) >= 0.25) d.points.push(next);
+        }
+        // Some engines return an empty coalesced-event list on pointerup.
+        const last = d.points[d.points.length - 1];
+        if (last.x !== pt.x || last.y !== pt.y) d.points.push(pt);
         break;
       case "crop":
         props.current.onCrop(cropFrom(d, pt, e.shiftKey));
@@ -350,10 +437,15 @@ export function Stage(p: Props) {
     requestDraw();
   }
 
-  function onPointerUp() {
+  function onPointerUp(e: RPointerEvent<HTMLCanvasElement>) {
+    if (pointerId.current !== e.pointerId) return;
+    // The release position is part of the gesture even when no move arrived.
+    onPointerMove(e);
     const d = drag.current;
     drag.current = null;
-    const { tool, doc, opts } = props.current;
+    releasePointer();
+    const { tool, doc } = props.current;
+    const opts = gestureOpts.current;
     if (!d) return;
     switch (d.kind) {
       case "pan":
@@ -365,24 +457,28 @@ export function Stage(p: Props) {
         if (d.tool === "erase") props.current.onOp({ kind: "erase", rect: r });
         if (d.tool === "fill") props.current.onFill(r);
         if (d.tool === "hide") props.current.onOp({ kind: "hide", rect: r, style: opts.hide, strength: opts.strength });
-        if (d.tool === "box") {
+        if (d.tool === "box" || d.tool === "ellipse") {
           const id = markId();
-          props.current.onMarks([...doc.marks, { id, kind: "box", rect: r, color: opts.color, width: opts.width }], id);
+          props.current.onMarks([...doc.marks, { id, kind: d.tool, rect: r, color: opts.color, width: opts.width, opacity: opts.opacity, fill: opts.fillShape }], id);
         }
         if (d.tool === "highlight") {
           const id = markId();
-          props.current.onMarks([...doc.marks, { id, kind: "highlight", rect: r, color: opts.highlight }], id);
+          props.current.onMarks([...doc.marks, { id, kind: "highlight", rect: r, color: opts.highlight, opacity: opts.opacity }], id);
         }
         break;
       }
       case "line":
-        if (Math.hypot(d.now.x - d.start.x, d.now.y - d.start.y) > 4) {
+        if (Math.hypot(d.now.x - d.start.x, d.now.y - d.start.y) > (d.tool === "arrow" ? 4 : 0.5)) {
           const id = markId();
-          props.current.onMarks([...doc.marks, { id, kind: "arrow", a: d.start, b: d.now, color: opts.color, width: opts.width }], id);
+          props.current.onMarks([...doc.marks, { id, kind: d.tool, a: d.start, b: d.now, color: opts.color, width: opts.width, opacity: opts.opacity }], id);
         }
         break;
       case "stroke":
-        props.current.onOp({ kind: "eraseStroke", points: d.points, size: opts.brush });
+        if (d.tool === "erase") props.current.onOp({ kind: "eraseStroke", points: d.points.slice(), size: opts.brush });
+        else {
+          const id = markId();
+          props.current.onMarks([...doc.marks, { id, kind: "stroke", tool: d.tool, points: d.points.slice(), color: d.tool === "marker" ? opts.highlight : opts.color, width: opts.width, opacity: opts.opacity }]);
+        }
         break;
       case "band": {
         const horizontal = opts.axis === "horizontal";
@@ -409,6 +505,7 @@ export function Stage(p: Props) {
   }
 
   function onWheel(e: RWheelEvent) {
+    if (drag.current || props.current.disabled) return;
     const { view } = props.current;
     if (e.ctrlKey) {
       const rect = canvasRef.current!.getBoundingClientRect();
@@ -424,6 +521,7 @@ export function Stage(p: Props) {
   }
 
   function onDoubleClick(e: RMouseEvent) {
+    if (props.current.disabled) return;
     const { tool, doc, view } = props.current;
     if (tool !== "select" && tool !== "text") return;
     const m = markAt(doc.marks, toImage(e), 6 / view.zoom);
@@ -449,28 +547,9 @@ export function Stage(p: Props) {
   }
 
   function cropFrom(d: Extract<Drag, { kind: "crop" }>, pt: Pt, shift: boolean): Rect {
-    const all = bounds();
     const ratio = props.current.cropRatio ?? (shift ? d.orig.w / Math.max(1, d.orig.h) : null);
-    let r: Rect;
-    if (d.mode === "move") {
-      r = keepInside({ ...d.orig, x: Math.round(d.orig.x + pt.x - d.start.x), y: Math.round(d.orig.y + pt.y - d.start.y) }, all);
-      return r;
-    }
-    r = d.mode === "new" ? fromPoints(d.start, pt) : resize(d.orig, d.mode, pt);
-    if (ratio) {
-      // The dragged side decides; the other side follows the ratio.
-      if (d.mode === "n" || d.mode === "s") r = { ...r, w: Math.max(1, Math.round(r.h * ratio)) };
-      else r = { ...r, h: Math.max(1, Math.round(r.w / ratio)) };
-      // Keep the corner opposite the pointer where it was.
-      if (d.mode === "new") {
-        if (pt.y < d.start.y) r = { ...r, y: Math.round(d.start.y - r.h) };
-        if (pt.x < d.start.x) r = { ...r, x: Math.round(d.start.x - r.w) };
-      } else {
-        if (d.mode.includes("n")) r = { ...r, y: d.orig.y + d.orig.h - r.h };
-        if (d.mode.includes("w")) r = { ...r, x: d.orig.x + d.orig.w - r.w };
-      }
-    }
-    return intersect(r, all) ?? d.orig;
+    const { width: w, height: h } = props.current.doc;
+    return dragCrop(d.orig, d.mode, d.start, pt, { w, h }, ratio);
   }
 
   function commitText() {
@@ -497,10 +576,14 @@ export function Stage(p: Props) {
     <div className="stage" ref={wrapRef}>
       <canvas
         ref={canvasRef}
+        tabIndex={0}
+        aria-label={t("ed.canvas")}
         style={{ cursor: cursorStyle }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={cancelDrag}
+        onLostPointerCapture={() => { if (drag.current) cancelDrag(); }}
         onPointerLeave={() => {
           cursor.current = null;
           props.current.onCursor(null);
@@ -562,6 +645,17 @@ function baseCursor(tool: Tool): string {
   return "crosshair";
 }
 
+function squareEnd(start: Pt, end: Pt): Pt {
+  const side = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y));
+  return { x: start.x + Math.sign(end.x - start.x || 1) * side, y: start.y + Math.sign(end.y - start.y || 1) * side };
+}
+
+function snapLine(start: Pt, end: Pt): Pt {
+  const distance = Math.hypot(end.x - start.x, end.y - start.y);
+  const angle = Math.round(Math.atan2(end.y - start.y, end.x - start.x) / (Math.PI / 4)) * (Math.PI / 4);
+  return { x: start.x + Math.cos(angle) * distance, y: start.y + Math.sin(angle) * distance };
+}
+
 let pattern: { theme: string; value: CanvasPattern } | null = null;
 
 function checker(ctx: CanvasRenderingContext2D): CanvasPattern {
@@ -592,23 +686,16 @@ function drawPreview(ctx: CanvasRenderingContext2D, d: Drag, opts: Options, doc:
     ctx.restore();
   };
   if (d.kind === "rect") {
-    const r = fromPoints(d.start, d.now);
-    if (d.tool === "box") drawMark(ctx, { id: "p", kind: "box", rect: r, color: opts.color, width: opts.width });
-    else if (d.tool === "highlight") drawMark(ctx, { id: "p", kind: "highlight", rect: r, color: opts.highlight });
+    const r = intersect(fromPoints(d.start, d.now), { x: 0, y: 0, w: doc.width, h: doc.height });
+    if (!r) return;
+    if (d.tool === "box" || d.tool === "ellipse") drawMark(ctx, { id: "p", kind: d.tool, rect: r, color: opts.color, width: opts.width, opacity: opts.opacity, fill: opts.fillShape });
+    else if (d.tool === "highlight") drawMark(ctx, { id: "p", kind: "highlight", rect: r, color: opts.highlight, opacity: opts.opacity });
     else if (d.tool === "erase") tint(r, "rgba(229, 72, 77, 0.22)", "#e5484d");
     else tint(r, "rgba(255, 211, 0, 0.18)", TALLY);
   }
-  if (d.kind === "line") drawMark(ctx, { id: "p", kind: "arrow", a: d.start, b: d.now, color: opts.color, width: opts.width });
+  if (d.kind === "line") drawMark(ctx, { id: "p", kind: d.tool, a: d.start, b: d.now, color: opts.color, width: opts.width, opacity: opts.opacity });
   if (d.kind === "stroke") {
-    ctx.save();
-    ctx.strokeStyle = "rgba(229, 72, 77, 0.55)";
-    ctx.lineWidth = opts.brush;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    d.points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-    ctx.stroke();
-    ctx.restore();
+    drawMark(ctx, { id: "p", kind: "stroke", tool: d.tool === "erase" ? "pen" : d.tool, points: d.points, width: d.tool === "erase" ? opts.brush : opts.width, color: d.tool === "erase" ? "#E5484D" : d.tool === "marker" ? opts.highlight : opts.color, opacity: d.tool === "erase" ? 0.55 : opts.opacity });
   }
   if (d.kind === "band") {
     const horizontal = opts.axis === "horizontal";

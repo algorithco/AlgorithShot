@@ -1,7 +1,11 @@
 .ed {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
+  width: 100%;
+  min-width: 0;
   height: 100vh;
+  overflow: hidden;
 }
 
 .ed-message {
@@ -14,6 +18,7 @@
 
 .ed-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
@@ -24,7 +29,19 @@
 
 .ed-group {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 2px;
+}
+
+.ed-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+  flex: 1 0 420px;
 }
 
 .ed-tool {
@@ -37,6 +54,7 @@
   background: transparent;
   color: var(--ink-2);
   cursor: pointer;
+  flex: none;
 }
 
 .ed-tool:hover {
@@ -50,11 +68,23 @@
   box-shadow: inset 0 0 0 1px var(--tally);
 }
 
+.ed-draw-tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .ed-sep {
   width: 1px;
   height: 22px;
   margin: 0 6px;
   background: var(--line);
+  flex: none;
 }
 
 .icon-btn:disabled {
@@ -66,6 +96,7 @@
 .ed-zoom {
   display: flex;
   align-items: center;
+  flex: none;
 }
 
 .ed-zoom-value {
@@ -88,7 +119,9 @@
 
 .ed-body {
   display: flex;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .stage {
@@ -100,6 +133,8 @@
 }
 
 .stage canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -142,7 +177,22 @@
   gap: 10px;
 }
 
-.ed-section + .ed-section {
+.ed-side-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ed-side-controls:disabled {
+  opacity: 0.65;
+}
+
+.ed-section + .ed-section,
+.ed-inspector + .ed-section {
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
@@ -177,6 +227,7 @@
   gap: 6px;
   font-size: 12px;
   color: var(--muted);
+  min-width: 0;
 }
 
 .ed-row2 {
@@ -225,19 +276,87 @@
   cursor: pointer;
 }
 
-.swatch-btn[aria-checked="true"] {
+.swatch-btn[aria-pressed="true"] {
   outline: 2px solid var(--tally);
   outline-offset: 2px;
 }
 
 .swatch-custom {
-  width: 28px;
-  height: 26px;
-  padding: 0;
+  width: 60px;
+  height: 54px;
+  padding: 3px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--surface);
   cursor: pointer;
+  flex: none;
+}
+
+.swatch-custom::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.swatch-custom::-webkit-color-swatch {
+  border: 0;
+  border-radius: 3px;
+}
+
+.ed-color-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--sunken);
+}
+
+.ed-color-custom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ed-hex {
+  flex: 1;
+}
+
+.ed-hex .input {
+  width: 100%;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.ed-rgb {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ed-rgb .ed-field {
+  gap: 4px;
+}
+
+.ed-channel {
+  font-weight: 700;
+}
+
+.ed-channel-r { color: #d53e45; }
+.ed-channel-g { color: #238a50; }
+.ed-channel-b { color: #3e7bfa; }
+
+.ed-brush-preview {
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: repeating-conic-gradient(#eef0f4 0 25%, #fff 0 50%) 0 / 16px 16px;
+}
+
+.ed-brush-preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .chips {
@@ -272,6 +391,24 @@
 .ed-slider input {
   flex: 1;
   accent-color: var(--tally);
+}
+
+.ed-slider > input[type="range"] {
+  min-width: 0;
+  width: 0;
+}
+
+.ed-slider .input.num {
+  width: 54px;
+  flex: none;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.ed-slider .ed-slider-unit {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .ed-slider span {
@@ -416,4 +553,48 @@
 
 .ed-dirty {
   color: var(--tally-text);
+}
+
+@media (max-width: 1100px) {
+  .ed-top {
+    gap: 6px 4px;
+  }
+
+  .ed-tools-drawing {
+    flex: none;
+  }
+
+  .ed-top-actions {
+    justify-content: flex-start;
+  }
+
+  .ed-side {
+    width: 280px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  .ed-top {
+    padding: 6px 8px;
+  }
+
+  .ed-tool {
+    width: 32px;
+    height: 32px;
+  }
+
+  .ed-draw-tool {
+    width: auto;
+    padding: 0 8px;
+  }
+
+  .ed-side {
+    width: 240px;
+  }
+
+  .ed-status {
+    gap: 8px;
+  }
 }

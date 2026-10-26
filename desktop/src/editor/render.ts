@@ -68,6 +68,8 @@ export function applyOp(src: OffscreenCanvas, op: Op): OffscreenCanvas {
       hide(c.getContext("2d")!, src, op.rect, op.style, op.strength);
       return c;
     }
+    case "rasterize":
+      return flatten(src, op.marks);
     case "replace":
       return fromBitmap(op.image);
   }
@@ -99,7 +101,8 @@ function hide(ctx: Ctx, src: OffscreenCanvas, r: Rect, style: HideStyle, strengt
   ctx.restore();
 }
 
-function strokePath(ctx: Ctx, points: { x: number; y: number }[], size: number, color: string) {
+function strokePath(ctx: Ctx, points: { x: number; y: number }[], size: number, color: string, smooth = true) {
+  if (!points.length) return;
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = size;
@@ -113,7 +116,20 @@ function strokePath(ctx: Ctx, points: { x: number; y: number }[], size: number, 
   }
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
-  for (const p of points.slice(1)) ctx.lineTo(p.x, p.y);
+  // One complete path per stroke keeps translucent ink uniform at overlaps.
+  // Midpoint curves remove sharp sample-to-sample corners while still ending
+  // exactly at the pointer's final position.
+  if (smooth && points.length > 2) {
+    for (let i = 1; i < points.length - 1; i++) {
+      const current = points[i];
+      const next = points[i + 1];
+      ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+    }
+  } else {
+    for (let i = 1; i < points.length - 1; i++) ctx.lineTo(points[i].x, points[i].y);
+  }
+  const last = points[points.length - 1];
+  ctx.lineTo(last.x, last.y);
   ctx.stroke();
 }
 
@@ -122,35 +138,66 @@ function strokePath(ctx: Ctx, points: { x: number; y: number }[], size: number, 
  * one op only applies that op, and undo goes back to a cached step.
  */
 export class BaseRenderer {
-  private steps: { op: Op | null; canvas: OffscreenCanvas | null }[];
+  private ops: Op[] = [];
+  private cache = new Map<number, { canvas: OffscreenCanvas; used: number }>();
+  private cachedBytes = 0;
+  private clock = 0;
 
-  constructor(original: ImageBitmap) {
-    this.steps = [{ op: null, canvas: fromBitmap(original) }];
+  constructor(original: ImageBitmap, private readonly cacheBudgetBytes = 128 * 1024 * 1024) {
+    this.remember(0, fromBitmap(original));
   }
 
   render(ops: Op[]): OffscreenCanvas {
     // How many leading ops are unchanged since the last render.
     let same = 0;
-    while (same < ops.length && same + 1 < this.steps.length && this.steps[same + 1].op === ops[same]) same++;
-    this.steps.length = same + 1;
+    while (same < ops.length && same < this.ops.length && this.ops[same] === ops[same]) same++;
+    this.ops = ops;
 
-    // Start from the latest step that still has its canvas.
-    let k = same;
-    while (!this.steps[k].canvas) k--;
-    let canvas = this.steps[k].canvas!;
-    for (let i = k + 1; i <= same; i++) {
-      canvas = applyOp(canvas, this.steps[i].op!);
-      this.steps[i].canvas = canvas;
+    // An undo or a new branch invalidates later snapshots. The original is
+    // always retained, so every discarded snapshot can be replayed exactly.
+    for (const [index, entry] of this.cache) {
+      if (index > same) {
+        this.cachedBytes -= this.bytes(entry.canvas);
+        this.cache.delete(index);
+      }
     }
-    for (let i = same; i < ops.length; i++) {
+
+    let start = 0;
+    for (const index of this.cache.keys()) if (index <= same) start = Math.max(start, index);
+    const checkpoint = this.cache.get(start)!;
+    checkpoint.used = ++this.clock;
+    let canvas = checkpoint.canvas;
+    for (let i = start; i < ops.length; i++) {
       canvas = applyOp(canvas, ops[i]);
-      this.steps.push({ op: ops[i], canvas });
+      this.remember(i + 1, canvas);
     }
-
-    // Keep the original, the last 10 results and every 8th as a checkpoint.
-    const keepFrom = this.steps.length - 10;
-    for (let i = 1; i < keepFrom; i++) if (i % 8 !== 0) this.steps[i].canvas = null;
     return canvas;
+  }
+
+  private bytes(canvas: OffscreenCanvas): number {
+    return canvas.width * canvas.height * 4;
+  }
+
+  private remember(index: number, canvas: OffscreenCanvas) {
+    const previous = this.cache.get(index);
+    if (previous) this.cachedBytes -= this.bytes(previous.canvas);
+    this.cache.set(index, { canvas, used: ++this.clock });
+    this.cachedBytes += this.bytes(canvas);
+
+    // Each 4K snapshot costs about 32 MiB. A fixed count or permanent every-
+    // eighth checkpoint grows too large for long editing sessions. Evict
+    // during replay as well, rather than retaining every intermediate frame.
+    while (this.cachedBytes > this.cacheBudgetBytes || this.cache.size > 12) {
+      let oldest: number | undefined;
+      for (const [candidate, entry] of this.cache) {
+        if (candidate === 0 || candidate === index) continue;
+        if (oldest === undefined || entry.used < this.cache.get(oldest)!.used) oldest = candidate;
+      }
+      // Original and current are unavoidable, even for images over budget.
+      if (oldest === undefined) break;
+      this.cachedBytes -= this.bytes(this.cache.get(oldest)!.canvas);
+      this.cache.delete(oldest);
+    }
   }
 }
 
@@ -164,12 +211,19 @@ export function drawMarks(ctx: Ctx, marks: Mark[], skip?: string) {
 
 export function drawMark(ctx: Ctx, m: Mark) {
   ctx.save();
-  if (m.kind !== "highlight") {
+  if (m.kind === "arrow" || m.kind === "text" || m.kind === "step") {
     ctx.shadowColor = "rgba(0, 0, 0, 0.28)";
     ctx.shadowBlur = 4;
     ctx.shadowOffsetY = 1;
   }
+  if ("opacity" in m) ctx.globalAlpha = Math.max(0, Math.min(1, m.opacity ?? 1));
   switch (m.kind) {
+    case "stroke":
+      strokePath(ctx, m.points, m.width, m.color, m.tool !== "pencil");
+      break;
+    case "line":
+      strokePath(ctx, [m.a, m.b], m.width, m.color);
+      break;
     case "arrow": {
       const ang = Math.atan2(m.b.y - m.a.y, m.b.x - m.a.x);
       const head = Math.max(12, m.width * 3.4);
@@ -196,13 +250,25 @@ export function drawMark(ctx: Ctx, m: Mark) {
       ctx.lineWidth = m.width;
       ctx.lineJoin = "round";
       ctx.beginPath();
-      ctx.roundRect(m.rect.x, m.rect.y, m.rect.w, m.rect.h, Math.min(m.width * 1.5, 10));
-      ctx.stroke();
+      ctx.rect(m.rect.x, m.rect.y, m.rect.w, m.rect.h);
+      if (m.fill) {
+        ctx.fillStyle = m.color;
+        ctx.fill();
+      } else ctx.stroke();
+      break;
+    case "ellipse":
+      ctx.strokeStyle = m.color;
+      ctx.fillStyle = m.color;
+      ctx.lineWidth = m.width;
+      ctx.beginPath();
+      ctx.ellipse(m.rect.x + m.rect.w / 2, m.rect.y + m.rect.h / 2, m.rect.w / 2, m.rect.h / 2, 0, 0, Math.PI * 2);
+      if (m.fill) ctx.fill();
+      else ctx.stroke();
       break;
     case "highlight":
       ctx.globalCompositeOperation = "multiply";
       ctx.fillStyle = m.color;
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = m.opacity ?? 0.55;
       ctx.fillRect(m.rect.x, m.rect.y, m.rect.w, m.rect.h);
       break;
     case "text": {
@@ -245,6 +311,25 @@ export function drawMark(ctx: Ctx, m: Mark) {
 /** Bounding box of a mark, for selection outlines. */
 export function markBounds(m: Mark, ctx?: Ctx): Rect {
   switch (m.kind) {
+    case "stroke": {
+      if (!m.points.length) return { x: 0, y: 0, w: 0, h: 0 };
+      let x0 = Infinity;
+      let y0 = Infinity;
+      let x1 = -Infinity;
+      let y1 = -Infinity;
+      for (const p of m.points) {
+        x0 = Math.min(x0, p.x);
+        y0 = Math.min(y0, p.y);
+        x1 = Math.max(x1, p.x);
+        y1 = Math.max(y1, p.y);
+      }
+      const pad = m.width / 2;
+      return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
+    }
+    case "line": {
+      const pad = m.width / 2;
+      return { x: Math.min(m.a.x, m.b.x) - pad, y: Math.min(m.a.y, m.b.y) - pad, w: Math.abs(m.b.x - m.a.x) + pad * 2, h: Math.abs(m.b.y - m.a.y) + pad * 2 };
+    }
     case "arrow": {
       const pad = m.width * 3;
       const x = Math.min(m.a.x, m.b.x) - pad;
@@ -252,6 +337,7 @@ export function markBounds(m: Mark, ctx?: Ctx): Rect {
       return { x, y, w: Math.abs(m.b.x - m.a.x) + pad * 2, h: Math.abs(m.b.y - m.a.y) + pad * 2 };
     }
     case "box":
+    case "ellipse":
     case "highlight":
       return m.rect;
     case "text": {
@@ -281,7 +367,13 @@ function luminance(hex: string): number {
 /** Base plus marks, as the final image. */
 export function flatten(base: OffscreenCanvas, marks: Mark[]): OffscreenCanvas {
   const c = clone(base);
-  drawMarks(c.getContext("2d")!, marks);
+  const ctx = c.getContext("2d")!;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, c.width, c.height);
+  ctx.clip();
+  drawMarks(ctx, marks);
+  ctx.restore();
   return c;
 }
 

@@ -12,7 +12,7 @@ By taking part, you agree to follow the [code of conduct](CODE_OF_CONDUCT.md).
 - Search the [existing issues](https://github.com/algorithco/AlgorithShot/issues)
   first.
 - Open a new issue with the **Bug report** or **Feature request** form.
-- Include the version (shown in **Settings › About**), your Windows version, your
+- Include the version (shown in **Settings › About**), your OS and desktop session, your
   monitors and scaling, and the steps to reproduce the problem.
 - Remove private data from screenshots and logs before you attach them.
 - Report security problems privately, as described in [SECURITY.md](SECURITY.md).
@@ -22,11 +22,26 @@ By taking part, you agree to follow the [code of conduct](CODE_OF_CONDUCT.md).
 You need Node 24.13+ and pnpm 10.29.3. `.node-version` records the tested Node
 version, and `rust-toolchain.toml` selects Rust 1.98.1 automatically.
 
-For the native desktop app, use Windows x64 with Rust's
-`x86_64-pc-windows-msvc` toolchain, Visual Studio 2022 Build Tools with
-**Desktop development with C++** and a Windows SDK, and WebView2 Runtime.
-Install missing Windows OCR language packs to test text recognition.
-The browser UI and API run on Windows, Linux and macOS without Rust.
+The browser UI and API run on Windows, Linux and macOS without Rust. Native
+builds also need the platform tools below.
+
+| Platform | Native prerequisites |
+| --- | --- |
+| Windows x64 | Rust MSVC toolchain, Visual Studio 2022 Build Tools with **Desktop development with C++**, Windows SDK, WebView2 |
+| macOS 12+ | Xcode Command Line Tools (`xcode-select --install`), native Rust toolchain |
+| Linux x86_64 | Ubuntu 24.04 or compatible, an X11 session, the development libraries below |
+
+On Ubuntu:
+
+```bash
+sudo apt-get install build-essential pkg-config libwebkit2gtk-4.1-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
+```
+
+Windows text recognition uses installed Windows OCR language packs. macOS and
+Linux bundle English, Russian, Uzbek Latin and Uzbek Cyrillic models. The models
+and WASM runtime are copied into the app during the build and run offline.
+macOS capture needs Screen Recording permission, and element snapping needs
+Accessibility permission. See [the desktop guide](desktop/README.md).
 
 ```bash
 git clone https://github.com/algorithco/AlgorithShot.git
@@ -46,17 +61,19 @@ The API uses documented defaults without a `.env` file. For custom settings,
 copy `shot-api/.env.example` to `shot-api/.env`; never commit your local `.env`.
 Development and CI need no release secrets or signing keys.
 
-To build a standalone Windows executable from the repository root:
+To build a standalone native executable from the repository root:
 
 ```bash
-pnpm desktop:build:local         # target/local/release/algorithco-shot.exe
-pnpm desktop:build:local --debug # target/local/debug/algorithco-shot.exe
+pnpm desktop:build:local
+pnpm desktop:build:local --debug
 ```
 
-Both outputs are under `desktop/src-tauri/`. Local builds disable updater
+Outputs are under `desktop/src-tauri/target/local/release/` or `debug/`.
+The executable is `algorithco-shot.exe` on Windows and `algorithco-shot` on
+macOS/Linux. Local builds disable updater
 endpoints and signature generation, and use a separate Cargo target directory.
 They do not read the maintainer's local signing key. Run the executable directly;
-the [signed installer](desktop/docs/UPDATES.md) is a maintainer release task.
+the [release process](desktop/docs/UPDATES.md) is a maintainer task.
 
 ## Making a change
 
@@ -76,12 +93,13 @@ the [signed installer](desktop/docs/UPDATES.md) is a maintainer release task.
    pnpm typecheck
    pnpm test
    pnpm test:release
+   pnpm test:ocr
    pnpm build
    cargo test --manifest-path desktop/src-tauri/Cargo.toml --lib
    ```
 
 5. Open a pull request into `main` and fill in the template. The required `CI`
-   check summarizes `pages`, `core` (Windows), `audit` and `secrets`. CI skips
+   check summarizes `pages`, `core` (Windows, macOS and Linux), `audit` and `secrets`. CI skips
    Rust tests that need a real screen or Windows' OCR languages, so run those
    on your PC when you change capture or OCR. A maintainer may need to approve
    your first workflow run. Fork workflows run without release credentials.
