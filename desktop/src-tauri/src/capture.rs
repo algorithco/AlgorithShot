@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+#[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC,
     SelectObject, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, SRCCOPY,
@@ -22,6 +23,7 @@ use crate::win::{self, MonitorInfo, Rect, WindowInfo};
 use crate::{clipboard, imaging, pins, wm};
 
 /// Copies a rectangle of the screen (physical pixels) as RGBA.
+#[cfg(target_os = "windows")]
 pub fn grab(r: Rect) -> Result<Vec<u8>> {
     if r.w <= 0 || r.h <= 0 {
         bail!("empty area");
@@ -67,6 +69,11 @@ pub fn grab(r: Rect) -> Result<Vec<u8>> {
         }
         Ok(buf)
     }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn grab(r: Rect) -> Result<Vec<u8>> {
+    win::grab(r)
 }
 
 pub struct Frame {

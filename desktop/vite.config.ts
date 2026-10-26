@@ -28,6 +28,7 @@ export default defineConfig(() => ({
         card: "card.html",
         editor: "editor.html",
         pin: "pin.html",
+        ocr: "ocr.html",
       },
     },
   },

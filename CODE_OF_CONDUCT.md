@@ -1,7 +1,7 @@
 # Code of conduct
 
-AlgorithShot is built by the Algorithco team and the people we invite to work
-with us. We want everyone who takes part in issues, pull requests, reviews and
+AlgorithShot is built by Algorithco and an open community of contributors.
+We want everyone who takes part in issues, pull requests, reviews and
 other project spaces to feel welcome and able to do their best work, whatever
 their background, identity or level of experience.
 

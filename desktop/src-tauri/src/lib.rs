@@ -1,13 +1,16 @@
 //! AlgorithShot: a screenshot app that captures exactly what you need,
 //! finds it again, and helps you share it safely.
 
+#[cfg_attr(not(target_os = "windows"), path = "platform/app_icons.rs")]
 mod app_icons;
 mod assets;
 mod capture;
 mod card;
+#[cfg_attr(not(target_os = "windows"), path = "platform/clipboard.rs")]
 mod clipboard;
 mod commands;
 mod editor;
+#[cfg_attr(not(target_os = "windows"), path = "platform/hotkeys.rs")]
 mod hotkeys;
 mod i18n;
 mod imaging;
@@ -22,6 +25,7 @@ mod state;
 mod storage;
 mod tray;
 mod watcher;
+#[cfg_attr(not(target_os = "windows"), path = "platform/win.rs")]
 mod win;
 mod wm;
 
@@ -107,6 +111,21 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("shot", protocol::handle)
         .setup(|app| {
             let handle = app.handle().clone();
+            #[cfg(not(target_os = "windows"))]
+            {
+                win::init(&handle);
+                smart::ocr::init(&handle)?;
+                if std::env::args().any(|arg| arg == "--verify-ocr") {
+                    let app = handle.clone();
+                    std::thread::spawn(move || {
+                        match smart::ocr::verify() {
+                            Ok(()) => { println!("Verified offline English, Russian and Uzbek OCR in the native webview."); app.exit(0); }
+                            Err(error) => { eprintln!("Native OCR verification failed: {error:#}"); app.exit(1); }
+                        }
+                    });
+                    return Ok(());
+                }
+            }
             let paths = Paths::resolve(&handle)?;
             let mut settings = Settings::load(&paths.settings);
             let library = Library::open(&paths.database)?;

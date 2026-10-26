@@ -41,7 +41,7 @@ export function PersonalizeStep({ draft, patch, t }: Controls) {
 export function CaptureStep({ draft, patch, t, info, status, onWindowsSettings }: Controls & { info: AppInfo | null; status: HotkeyStatus[]; onWindowsSettings: () => void }) {
   const keyStatus = (key: string) => status.find((item) => item.key === key);
   const setKey = (key: keyof Hotkeys, value: string) => patch({ hotkeys: { ...draft.hotkeys, [key]: value } });
-  const blocked = info?.printScreenTaken && draft.hotkeys.capture === "PrintScreen" && !keyStatus("PrintScreen")?.ok;
+  const blocked = info?.printScreenTaken && Object.values(draft.hotkeys).some((key) => key.toLowerCase() === "printscreen") && !keyStatus("PrintScreen")?.ok;
   const duplicates = duplicateShortcuts(draft.hotkeys);
   return <>
     <div className="setup-capture-demo"><div className="setup-capture-icon" aria-hidden="true"><ScanLine size={25} /></div><div><small>{t("setup.anyApp")}</small><div>{draft.hotkeys.capture || draft.hotkeys.captureAlt ? <Keys value={draft.hotkeys.capture || draft.hotkeys.captureAlt} /> : <span>{t("setup.captureButton")}</span>}</div></div><span className="setup-demo-arrow" aria-hidden="true">↗</span></div>

@@ -2,7 +2,13 @@
   "name": "@algorithco/shot-api",
   "version": "0.1.0",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "description": "The independent AlgorithShot HTTP API",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorithco/AlgorithShot.git",
+    "directory": "shot-api"
+  },
   "type": "module",
   "engines": {
     "node": ">=24.13.0"

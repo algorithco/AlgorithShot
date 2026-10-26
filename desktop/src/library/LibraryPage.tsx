@@ -162,7 +162,7 @@ export function LibraryPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmIds, renaming, remove, run, t]);
 
-  const hotkey = settings?.hotkeys.capture || settings?.hotkeys.captureAlt || "PrintScreen";
+  const hotkey = settings?.hotkeys.capture || settings?.hotkeys.captureAlt || "Ctrl+Alt+A";
   const empty = !lib.loading && lib.items.length === 0;
 
   return (

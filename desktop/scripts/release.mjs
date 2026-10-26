@@ -26,6 +26,27 @@ export function updaterBuildConfig(publicKey) {
   };
 }
 
+/** A contributor build never needs a private key or contacts the official feed. */
+export function localBuildOptions(config, inheritedEnv) {
+  const publicKey = config.plugins?.updater?.pubkey?.trim();
+  if (!publicKey) throw new Error("Configure the updater public key in src-tauri/tauri.conf.json before building.");
+
+  // Windows environment names are case-insensitive. Remove inherited overrides
+  // as well as signing credentials before creating the child process environment.
+  const replaced = new Set([
+    "TAURI_SIGNING_PRIVATE_KEY", "TAURI_SIGNING_PRIVATE_KEY_PASSWORD", "TAURI_CONFIG",
+    "TAURI_UPDATER_PUBLIC_KEY", "VITE_DISABLE_UPDATES", "CARGO_TARGET_DIR",
+  ]);
+  const env = Object.fromEntries(Object.entries(inheritedEnv).filter(([key]) => !replaced.has(key.toUpperCase())));
+  return {
+    env: { ...env, TAURI_UPDATER_PUBLIC_KEY: publicKey, VITE_DISABLE_UPDATES: "1" },
+    config: {
+      bundle: { createUpdaterArtifacts: false },
+      plugins: { updater: { pubkey: publicKey, endpoints: [] } },
+    },
+  };
+}
+
 export function createUpdateManifest({ version, tag, repository }, installerName, signature) {
   if (!signature.trim()) throw new Error("The installer signature is empty.");
   if (!installerName.endsWith(`_${version}_x64-setup.exe`)) {

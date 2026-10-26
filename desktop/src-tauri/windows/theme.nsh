@@ -194,9 +194,9 @@ Function ShotFinishShow
   Call ShotThemePage
   SetCtlColors $ShotEyebrow 62625D F7F7F5
   SetCtlColors $mui.FinishPage.Text 62625D F7F7F5
-  ${NSD_CreateLabel} 0 0 1 1 "Print Screen"
+  ${NSD_CreateLabel} 0 0 1 1 "Ctrl + Alt + A"
   Pop $ShotControl
-  !insertmacro SHOT_MOVE $ShotControl 280 242 116 32 mono
+  !insertmacro SHOT_MOVE $ShotControl 280 242 144 32 mono
   ${NSD_AddStyle} $ShotControl ${SS_CENTER}|${SS_CENTERIMAGE}
   SetCtlColors $ShotControl 111111 FFD300
   SendMessage $mui.Button.Next ${WM_SETTEXT} 0 "STR:$(shotFinish)"

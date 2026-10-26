@@ -8,8 +8,9 @@
 
 ## Checklist
 
-- [ ] `pnpm typecheck`, `pnpm test` and `pnpm build` pass
+- [ ] `pnpm typecheck`, `pnpm test`, `pnpm test:release` and `pnpm build` pass
 - [ ] Rust changes: `cargo test --manifest-path desktop/src-tauri/Cargo.toml --lib` passes
 - [ ] New user-facing text is in English, Uzbek and Russian
 - [ ] The docs are updated where behaviour changed
 - [ ] No secrets, signing keys or private screenshots are included
+- [ ] Any added third-party code has its license and attribution documented

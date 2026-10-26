@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createUpdateManifest, updaterBuildConfig, validateRelease } from "./release.mjs";
+import { createUpdateManifest, localBuildOptions, updaterBuildConfig, validateRelease } from "./release.mjs";
 
 function options() {
   return {
@@ -69,4 +69,36 @@ test("the manifest refuses missing signatures, other versions and other architec
   assert.throws(() => createUpdateManifest(release, "AlgorithShot_0.2.0_x64-setup.exe", "\n"), /signature is empty/);
   assert.throws(() => createUpdateManifest(release, "AlgorithShot_0.1.0_x64-setup.exe", "sig"), /x64 NSIS installer/);
   assert.throws(() => createUpdateManifest(release, "AlgorithShot_0.2.0_arm64-setup.exe", "sig"), /x64 NSIS installer/);
+});
+
+test("local builds work without private credentials and disable update distribution", () => {
+  const config = { plugins: { updater: { pubkey: " public-key\n", endpoints: ["https://example.com/latest.json"] } } };
+  const original = structuredClone(config);
+  const result = localBuildOptions(config, { PATH: "test-path" });
+  assert.equal(result.env.TAURI_UPDATER_PUBLIC_KEY, "public-key");
+  assert.equal(result.env.VITE_DISABLE_UPDATES, "1");
+  assert.equal(result.env.PATH, "test-path");
+  assert.equal(result.env.TAURI_SIGNING_PRIVATE_KEY, undefined);
+  assert.equal(result.config.bundle.createUpdaterArtifacts, false);
+  assert.deepEqual(result.config.plugins.updater.endpoints, []);
+  assert.deepEqual(config, original);
+});
+
+test("inherited release credentials and config cannot leak into a Windows local build", () => {
+  const inherited = {
+    TAURI_SIGNING_PRIVATE_KEY: "test-private-key-path",
+    tauri_signing_private_key_password: "test-password",
+    tauri_updater_public_key: "different-public-key",
+    Tauri_Config: "test-release-config",
+    vite_disable_updates: "0",
+    Cargo_Target_Dir: "test-release-directory",
+  };
+  const result = localBuildOptions({ plugins: { updater: { pubkey: "configured-public-key" } } }, inherited);
+  assert.deepEqual(result.env, { TAURI_UPDATER_PUBLIC_KEY: "configured-public-key", VITE_DISABLE_UPDATES: "1" });
+  assert.equal(inherited.TAURI_SIGNING_PRIVATE_KEY, "test-private-key-path");
+});
+
+test("local builds reject a missing public key even if an environment override exists", () => {
+  assert.throws(() => localBuildOptions({}, { TAURI_UPDATER_PUBLIC_KEY: "environment-key" }), /public key/);
+  assert.throws(() => localBuildOptions({ plugins: { updater: { pubkey: "  " } } }, {}), /public key/);
 });

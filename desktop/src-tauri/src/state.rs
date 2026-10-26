@@ -80,6 +80,8 @@ pub struct Deleted {
     pub ids: Vec<String>,
     pub paths: Vec<PathBuf>,
     pub at: chrono::DateTime<chrono::Local>,
+    #[cfg(target_os = "macos")]
+    pub trash_paths: Vec<PathBuf>,
 }
 
 pub struct AppState {

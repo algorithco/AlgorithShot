@@ -12,7 +12,7 @@ pub const SETUP_VERSION: u32 = 1;
 pub struct Hotkeys {
     /// Freezes the screen and shows the capture toolbar.
     pub capture: String,
-    /// Second key for the same thing, for when Print Screen is taken.
+    /// Second key for the same capture toolbar.
     pub capture_alt: String,
     pub text: String,
     pub qr: String,
@@ -24,8 +24,8 @@ pub struct Hotkeys {
 impl Default for Hotkeys {
     fn default() -> Self {
         Self {
-            capture: "PrintScreen".into(),
-            capture_alt: "Ctrl+Shift+PrintScreen".into(),
+            capture: "Ctrl+Alt+A".into(),
+            capture_alt: if cfg!(target_os = "windows") { "PrintScreen".into() } else { String::new() },
             text: String::new(),
             qr: String::new(),
             full_screen: String::new(),
@@ -196,13 +196,7 @@ pub fn ensure_capture_dir_writable(path: &Path) -> Result<()> {
 }
 
 fn sys_locale() -> String {
-    use windows::Win32::Globalization::GetUserDefaultLocaleName;
-    let mut buf = [0u16; 85];
-    let n = unsafe { GetUserDefaultLocaleName(&mut buf) };
-    if n <= 1 {
-        return "en".into();
-    }
-    String::from_utf16_lossy(&buf[..(n - 1) as usize])
+    sys_locale::get_locale().unwrap_or_else(|| "en".into())
 }
 
 #[cfg(test)]
@@ -228,7 +222,7 @@ mod tests {
     #[test]
     fn bindings_skip_empty() {
         let h = Hotkeys { capture_alt: String::new(), text: "Ctrl+Alt+T".into(), ..Default::default() };
-        assert_eq!(h.bindings(), vec![("capture", "PrintScreen"), ("text", "Ctrl+Alt+T")]);
+        assert_eq!(h.bindings(), vec![("capture", "Ctrl+Alt+A"), ("text", "Ctrl+Alt+T")]);
     }
 
     #[test]

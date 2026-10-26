@@ -1,0 +1,3 @@
+{
+  "build": { "beforeBundleCommand": "powershell -NoProfile -File dev/build-installer-ui.ps1" }
+}

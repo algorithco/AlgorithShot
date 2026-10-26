@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ocr",
+  "description": "Exchange offline OCR jobs with the hidden local OCR worker",
+  "windows": ["ocr"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "core:event:allow-emit"]
+}

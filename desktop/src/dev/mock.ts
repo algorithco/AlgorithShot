@@ -70,7 +70,7 @@ const settings: Settings = {
   snap: true,
   highlight: false,
   elements: true,
-  hotkeys: { capture: "PrintScreen", captureAlt: "Ctrl+Shift+PrintScreen", text: "", qr: "", fullScreen: "", repeat: "", library: "" },
+  hotkeys: { capture: "Ctrl+Alt+A", captureAlt: "PrintScreen", text: "", qr: "", fullScreen: "", repeat: "", library: "" },
   launchAtLogin: false,
   indexText: true,
   privacyCheck: true,
@@ -132,10 +132,12 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
       emit("settings:changed", settings);
       return settings;
     case "hotkey_status":
-      return [
-        { action: "capture", key: settings.hotkeys.capture, ok: false, error: "already registered" },
-        { action: "capture", key: settings.hotkeys.captureAlt, ok: true, error: null },
-      ];
+      return Object.entries(settings.hotkeys).filter(([, key]) => key.trim()).map(([action, key]) => ({
+        action: action === "captureAlt" ? "capture" : action === "fullScreen" ? "screen" : action,
+        key,
+        ok: key.toLowerCase() !== "printscreen",
+        error: key.toLowerCase() === "printscreen" ? "already registered" : null,
+      }));
     case "hotkeys_suspend":
       return [];
     case "pick_folder":
@@ -146,7 +148,7 @@ function handle(cmd: string, args: Record<string, unknown> = {}): unknown {
         saveDir: "C:\\Users\\you\\Pictures\\AlgorithShot",
         defaultSaveDir: "C:\\Users\\you\\Pictures\\AlgorithShot",
         saveDirSynced: false,
-        printScreenTaken: true,
+        printScreenTaken: Object.values(settings.hotkeys).some((key) => key.toLowerCase() === "printscreen"),
         language: "en",
       };
     case "library_list":

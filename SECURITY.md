@@ -17,8 +17,8 @@ about it are still welcome.
 
 ## Reporting a vulnerability
 
-Do not report security problems in issues, discussions or pull requests, even
-though the repository is private. Instead, email **hello@algorithco.com** with
+Do not report security problems in public issues, discussions or pull requests.
+Instead, email **hello@algorithco.com** with
 "Security" in the subject.
 
 Please include:

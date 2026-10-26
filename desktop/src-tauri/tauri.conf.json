@@ -7,10 +7,10 @@
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
-    "beforeBundleCommand": "powershell -NoProfile -File dev/build-installer-ui.ps1",
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [],
     "security": {
       "csp": {
@@ -18,7 +18,9 @@
         "img-src": "'self' data: blob: http://shot.localhost",
         "connect-src": "'self' ipc: http://ipc.localhost http://shot.localhost",
         "style-src": "'self' 'unsafe-inline'",
-        "font-src": "'self' data:"
+        "font-src": "'self' data:",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "worker-src": "'self'"
       }
     }
   },
@@ -27,7 +29,9 @@
     "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "publisher": "Algorithco",
-    "copyright": "Copyright © 2026 Algorithco. All rights reserved.",
+    "copyright": "Copyright © 2026 Algorithco and contributors",
+    "license": "MIT",
+    "licenseFile": "../../LICENSE",
     "category": "Productivity",
     "shortDescription": "Screenshots that are exact, searchable and safe to share",
     "icon": [

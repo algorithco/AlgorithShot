@@ -228,16 +228,20 @@ pub fn delete(app: &AppHandle, ids: &[String], permanent: bool) -> Result<Delete
         }
     } else {
         let at = Local::now();
-        trash::delete_all(&paths).map_err(|e| anyhow!("Recycle Bin: {e}"))?;
+        #[cfg(not(target_os = "macos"))]
+        trash::delete_all(&paths).map_err(|e| anyhow!("Trash: {e}"))?;
+        #[cfg(target_os = "macos")]
+        let trash_paths = macos_trash::delete(&paths)?;
         let ids: Vec<String> = shots.iter().map(|s| s.id.clone()).collect();
         st.library.set_trashed(&ids, Some(at.timestamp_millis()))?;
-        *st.last_deleted.lock() = Some(Deleted { ids, paths, at });
+        *st.last_deleted.lock() = Some(Deleted { ids, paths, at, #[cfg(target_os = "macos")] trash_paths });
     }
     let _ = app.emit("library:changed", "");
     Ok(DeleteResult { deleted: shots.len(), can_undo: !permanent })
 }
 
 /// Restores what the last delete moved to the Recycle Bin.
+#[cfg(not(target_os = "macos"))]
 pub fn undo_delete(app: &AppHandle) -> Result<usize> {
     let st = state(app);
     let Some(last) = st.last_deleted.lock().take() else { bail!("nothing to undo") };
@@ -257,6 +261,61 @@ pub fn undo_delete(app: &AppHandle) -> Result<usize> {
     st.library.set_trashed(&last.ids, None)?;
     let _ = app.emit("library:changed", "");
     Ok(restored)
+}
+
+#[cfg(target_os = "macos")]
+pub fn undo_delete(app: &AppHandle) -> Result<usize> {
+    let st = state(app);
+    let Some(last) = st.last_deleted.lock().take() else { bail!("nothing to undo") };
+    for path in &last.paths { st.note_write(path.clone()); }
+    macos_trash::restore(&last.trash_paths, &last.paths)?;
+    st.library.set_trashed(&last.ids, None)?;
+    let _ = app.emit("library:changed", "");
+    Ok(last.paths.len())
+}
+
+#[cfg(target_os = "macos")]
+mod macos_trash {
+    use super::*;
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+
+    pub fn delete(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
+        let manager = NSFileManager::defaultManager();
+        let mut moved = Vec::new();
+        for path in paths {
+            let url = NSURL::fileURLWithPath_isDirectory(&NSString::from_str(&path.to_string_lossy()), false);
+            let mut resulting = None;
+            if let Err(error) = manager.trashItemAtURL_resultingItemURL_error(&url, Some(&mut resulting)) {
+                let _ = restore(&moved, &paths[..moved.len()]);
+                bail!("Trash: {error}");
+            }
+            let trash_path = resulting.and_then(|url| url.path()).context("macOS did not return the trashed file's path")?;
+            moved.push(PathBuf::from(trash_path.to_string()));
+        }
+        Ok(moved)
+    }
+
+    pub fn restore(trashed: &[PathBuf], original: &[PathBuf]) -> Result<()> {
+        for (source, target) in trashed.iter().zip(original) {
+            if target.exists() { bail!("Cannot restore {}: a file already exists there", target.display()); }
+            if let Some(parent) = target.parent() { std::fs::create_dir_all(parent)?; }
+            match std::fs::hard_link(source, target) {
+                Ok(()) => {},
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(error.into()),
+                Err(_) => {
+                    let mut input = std::fs::File::open(source)?;
+                    let mut output = std::fs::OpenOptions::new().write(true).create_new(true).open(target)?;
+                    if let Err(error) = std::io::copy(&mut input, &mut output).and_then(|_| output.sync_all()) {
+                        drop(output);
+                        let _ = std::fs::remove_file(target);
+                        return Err(error.into());
+                    }
+                }
+            }
+            std::fs::remove_file(source)?;
+        }
+        Ok(())
+    }
 }
 
 pub fn rename(app: &AppHandle, id: &str, new_name: &str) -> Result<Shot> {

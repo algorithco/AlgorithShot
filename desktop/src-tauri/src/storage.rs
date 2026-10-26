@@ -59,7 +59,8 @@ fn resolved(path: &Path) -> Result<PathBuf> {
 }
 
 fn path_key(path: &Path) -> Result<String> {
-    Ok(resolved(path)?.to_string_lossy().to_lowercase())
+    let value = resolved(path)?.to_string_lossy().into_owned();
+    Ok(if cfg!(target_os = "windows") { value.to_lowercase() } else { value })
 }
 
 pub fn validate_save_dir<'a>(dir: &Path, private_dirs: impl IntoIterator<Item = &'a PathBuf>) -> Result<()> {
@@ -76,7 +77,9 @@ pub fn validate_save_dir<'a>(dir: &Path, private_dirs: impl IntoIterator<Item = 
             && root
                 .components()
                 .zip(target.components())
-                .all(|(a, b)| a.as_os_str().to_string_lossy().to_lowercase() == b.as_os_str().to_string_lossy().to_lowercase())
+                .all(|(a, b)| if cfg!(target_os = "windows") {
+                    a.as_os_str().to_string_lossy().to_lowercase() == b.as_os_str().to_string_lossy().to_lowercase()
+                } else { a == b })
         {
             bail!(UnsafeSaveDir(
                 "This folder can be removed with the app or temporary files. Choose a folder in Pictures or Documents."
@@ -285,12 +288,14 @@ mod tests {
         for root in &f.paths.private_dirs {
             assert!(f.paths.validate_save_dir(root).is_err());
             assert!(f.paths.validate_save_dir(&root.join("new/screenshots")).is_err());
+            #[cfg(target_os = "windows")]
             assert!(f.paths.validate_save_dir(&PathBuf::from(root.to_string_lossy().to_uppercase())).is_err());
         }
         assert!(f.paths.validate_save_dir(&f.root.join("Pictures/../appdata/shots")).is_err());
     }
 
     #[test]
+    #[cfg(target_os = "windows")]
     fn junction_cannot_disguise_app_data_as_a_user_folder() {
         let f = Fixture::new();
         let data = &f.paths.private_dirs[0];

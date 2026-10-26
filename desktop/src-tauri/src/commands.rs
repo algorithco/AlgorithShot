@@ -50,12 +50,12 @@ pub async fn save_settings(app: AppHandle, mut settings: Settings) -> CmdResult<
     };
     let startup_changed = old.launch_at_login != settings.launch_at_login;
     if startup_changed {
-        set_autostart(settings.launch_at_login).map_err(|e| format!("Could not change Start with Windows: {e}"))?;
+        set_autostart(settings.launch_at_login).map_err(|e| format!("Could not change start at login: {e}"))?;
     }
     if let Err(e) = settings.save(&st.paths.settings) {
         if startup_changed {
             if let Err(rollback) = set_autostart(old.launch_at_login) {
-                log::warn!("restore Start with Windows after failed save: {rollback}");
+                log::warn!("restore start at login after failed save: {rollback}");
             }
         }
         return Err(anyhow_err(e));
@@ -118,7 +118,22 @@ pub fn app_info(app: AppHandle) -> AppInfo {
 /// Opens the Windows Settings page where Print Screen can be given back.
 #[tauri::command]
 pub fn open_keyboard_settings(app: AppHandle) -> CmdResult<()> {
+    #[cfg(target_os = "windows")]
+    {
     app.opener().open_url("ms-settings:easeofaccess-keyboard", None::<&str>).map_err(err)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        app.opener().open_url("x-apple.systempreferences:com.apple.preference.keyboard", None::<&str>).map_err(err)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        for (command, argument) in [("gnome-control-center", "keyboard"), ("systemsettings", "kcm_keys")] {
+            if std::process::Command::new(command).arg(argument).spawn().is_ok() { return Ok(()); }
+        }
+        Err("Open your desktop environment's keyboard shortcut settings.".into())
+    }
 }
 
 #[tauri::command]

@@ -7,14 +7,14 @@
 <p align="center">
   A Windows screenshot app that captures exactly what you need, finds it again by
   the text inside it, and hides private data before you share it.<br>
-  Offline, in English, Uzbek and Russian.
+  Open source, offline, in English, Uzbek and Russian.
 </p>
 
 <p align="center">
   <a href="https://github.com/algorithco/algorith-shot-releases/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/algorithco/algorith-shot-releases?label=release&labelColor=111111&color=ffd300"></a>
-  <a href="https://github.com/algorithco/algorith-shot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/algorithco/algorith-shot/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/algorithco/AlgorithShot/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/algorithco/AlgorithShot/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-111111">
-  <a href="LICENSE"><img alt="License: all rights reserved" src="https://img.shields.io/badge/license-all%20rights%20reserved-111111"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-111111"></a>
 </p>
 
 <p align="center">
@@ -49,14 +49,14 @@ Download `AlgorithShot_<version>_x64-setup.exe` from the
 and run it. The [Releases](https://github.com/algorithco/algorith-shot-releases/releases)
 page has notes for every version. Installers and the update feed are published
 in the public [algorith-shot-releases](https://github.com/algorithco/algorith-shot-releases)
-repository, and the source code stays private.
+repository. This repository contains the source code for the desktop app and API.
 
 ## Repository
 
 AlgorithShot contains a Windows screenshot desktop app and a separate HTTP API.
 
 ```text
-algorithco-shot/
+AlgorithShot/
   desktop/              React + TypeScript UI and Tauri/Rust desktop app
     src/                Library, overlay, editor, quick card and pinned shots
     src-tauri/          Windows capture, OCR, SQLite library and installer
@@ -78,13 +78,18 @@ are not implemented yet; starting the API does not upload desktop screenshots.
 
 ## Development
 
-Use Node 24.13+ and pnpm 10.29.3. Desktop builds also need Rust (MSVC) and the
-Visual Studio C++ build tools on Windows. Backend development only needs Node
-and pnpm.
+Use Node 24.13+ and pnpm 10.29.3. The tested Node version is recorded in
+`.node-version`; `rust-toolchain.toml` pins Rust 1.98.1. Native desktop builds
+need Windows x64, the Rust MSVC toolchain, Visual Studio 2022 Build Tools with
+**Desktop development with C++** and a Windows SDK, and WebView2 Runtime.
+The browser UI and API can be developed on Windows, Linux or macOS with Node
+and pnpm. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and testing details.
 
-From the repository root:
+Clone the repository, then run the commands from its root:
 
 ```bash
+git clone https://github.com/algorithco/AlgorithShot.git
+cd AlgorithShot
 pnpm install --frozen-lockfile
 pnpm desktop:dev       # Tauri desktop app
 pnpm dev               # desktop pages in a browser, with local fake data
@@ -104,12 +109,16 @@ pnpm test              # desktop and API tests
 pnpm test:release      # desktop release metadata checks
 pnpm build             # desktop frontend and API production builds
 pnpm api:start         # start the built API
-pnpm release:build     # signed Windows desktop installer
+pnpm desktop:build:local # Windows executable; no private signing key needed
+pnpm release:build     # maintainer-only signed Windows installer
 cargo test --manifest-path desktop/src-tauri/Cargo.toml --lib
 ```
 
-`pnpm tauri dev` remains available from the repository root. `pnpm build` builds
-the desktop frontend; a native Windows installer is built with `pnpm release:build`.
+`pnpm build` builds the frontend and API. `pnpm desktop:build:local` builds a
+standalone native executable under `desktop/src-tauri/target/local/release/`.
+Use `pnpm desktop:build:local --debug` for a faster debug build. Local builds
+disable update checks and create no installer or update feed. Official installers
+use the separate [maintainer release process](desktop/docs/UPDATES.md).
 
 ## Documentation
 
@@ -117,17 +126,23 @@ the desktop frontend; a native Windows installer is built with `pnpm release:bui
 - [In-app updates and releases](desktop/docs/UPDATES.md): signing and publishing a version
 - [Product plan](desktop/docs/PLAN.md): what the app is for and why
 - [API guide](shot-api/README.md): endpoints, configuration and language tradeoffs
+- [Roadmap](ROADMAP.md): priorities and ways to help
+- [Third-party notices](THIRD_PARTY_NOTICES.md): dependencies and upstream code
+- [Maintainer guide](docs/MAINTAINING.md): reviews, security and releases
 
 ## Contributing
 
-AlgorithShot is developed by Algorithco. Read [CONTRIBUTING.md](CONTRIBUTING.md)
-before you open a pull request, and follow the [code of conduct](CODE_OF_CONDUCT.md).
-For help, see [SUPPORT.md](SUPPORT.md).
+Contributions are welcome: bug reports, translations, documentation, tests and
+code. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and
+follow the [code of conduct](CODE_OF_CONDUCT.md). For help, see
+[SUPPORT.md](SUPPORT.md).
 
 Report security problems privately, as described in [SECURITY.md](SECURITY.md).
 Do not open public issues for them.
 
 ## License
 
-Not open source: all rights reserved. See [LICENSE](LICENSE). Send permission
-requests to hello@algorithco.com.
+The desktop app and API are available under the [MIT License](LICENSE).
+Dependencies retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+For use of the Algorithco and AlgorithShot names and logos, see
+[BRANDING.md](BRANDING.md).

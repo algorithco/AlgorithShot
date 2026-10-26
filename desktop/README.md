@@ -6,13 +6,14 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
 
 ## What it does
 
-- **Capture**: one hotkey (Print Screen, or Ctrl+Shift+Print Screen) freezes the
+- **Capture**: one hotkey (Ctrl+Alt+A, or Print Screen) freezes the
   screen. Drag a region, click a window, capture the full screen or a fixed size,
   or use a timer. With **Highlight the window under the pointer** turned on in
   Settings, a click in Region mode also captures a window or a part of it
   (buttons, panels, messages via UI Automation). Letting go copies the capture at
   once; hold Ctrl to adjust it first with the live size in real pixels, arrow-key
-  nudging and typed sizes.
+  nudging and typed sizes. Change hotkeys in Settings; upgrades preserve saved
+  bindings.
 - **Screen tools**: copy text from anything on screen (Windows OCR): the screen
   stays frozen and you pick the words right there. Scan QR codes and barcodes,
   pick colours, measure with the ruler, pin a capture on top.
@@ -55,7 +56,8 @@ pnpm tauri dev        # run the app
 pnpm dev              # pages only, in a browser, with fake data (src/dev/mock.ts)
 pnpm test             # frontend tests
 cargo test --manifest-path src-tauri/Cargo.toml --lib   # Rust tests, incl. Windows OCR and a real screen grab
-pnpm release:build    # signed Windows installer + latest.json (see docs/UPDATES.md)
+pnpm build:local      # standalone Windows executable; no private key needed
+pnpm release:build    # maintainer-only signed installer + latest.json
 powershell -File dev/test-uninstall-storage.ps1 # isolated NSIS image-preservation test (requires NSIS from a Tauri build)
 ```
 
@@ -89,8 +91,12 @@ src/
 
 In-app update setup, signed local release builds, and publishing instructions are
 in [docs/UPDATES.md](docs/UPDATES.md). The app checks for updates automatically;
-installation starts when the user clicks the banner.
+installation starts when the user clicks the banner. Local standalone builds
+disable update checks. Their executables are under
+`src-tauri/target/local/release/`, or `src-tauri/target/local/debug/` when built
+with `pnpm build:local --debug`.
 
 ## License
 
-Not open source: all rights reserved. See [LICENSE](../LICENSE).
+MIT. See [LICENSE](../LICENSE), [third-party notices](../THIRD_PARTY_NOTICES.md)
+and the [branding guidelines](../BRANDING.md).

@@ -13,27 +13,44 @@ without a click. Development builds do not contact the update endpoint.
 
 Releases are published in the public
 [algorithco/algorith-shot-releases](https://github.com/algorithco/algorith-shot-releases)
-repository. That repository holds only the installers and the update feed; this
-repository and its source code stay private. The update feed is:
+repository. That repository holds the installers and update feed; the desktop
+and API source code are in `algorithco/AlgorithShot` under the MIT License.
+The existing update feed remains:
 `https://github.com/algorithco/algorith-shot-releases/releases/latest/download/latest.json`.
 Both the manifest and installer assets must be publicly readable. The release
 script builds the installer URLs from the updater endpoint in
 `src-tauri/tauri.conf.json`.
 
-Versions 0.1.0 and 0.1.1 check an older feed in this private repository, so
-they cannot see newer versions. Their users need to install 0.1.2 or later by
-hand once.
+Versions 0.1.0 and 0.1.1 check an older feed in the source repository. Those
+versions may need a one-time manual installation of 0.1.2 or later to use the
+current feed.
+
+## Builds from source
+
+Contributors need no private key. From the repository root, run
+`pnpm desktop:build:local` or `pnpm desktop:build:local --debug`.
+The executable is placed in `desktop/src-tauri/target/local/release/` or
+`desktop/src-tauri/target/local/debug/`. The command verifies embedded assets
+without opening the app or accessing user data.
+
+Local builds disable frontend update checks, clear updater endpoints, disable
+update artifact generation and remove inherited signing variables. They use a
+separate Cargo target directory and create neither installers nor `latest.json`.
+The configured public key is public configuration and can remain in the source.
+
+The rest of this guide is for maintainers publishing official installers.
 
 ## Signing setup
 
-A signing key pair has been generated on this computer. The private key is in
-`.local/updater/algorithshot.key`, which Git ignores. The matching public key is
-in `src-tauri/tauri.conf.json`. Back up the private key securely before publishing
-the first release. Keep using that key for subsequent releases; installed apps
-trust its public key. The generated local key has an empty password.
+The trusted public key is in `src-tauri/tauri.conf.json`. Keep the matching
+private key and any password in maintainer-controlled secret storage and keep
+a secure backup. Installed apps trust this public key, so changing the key
+requires a migration plan.
 
-On this computer, run `pnpm release:build` directly. It reads the configured
-public key and the ignored local private key automatically.
+`pnpm release:build` can read an existing maintainer key from
+`desktop/.local/updater/algorithshot.key`, which Git ignores. Contributors do
+not need or receive this file. Never commit a private key or put one in an issue,
+artifact or workflow log.
 If Rust runs out of memory while compiling, set `$env:CARGO_BUILD_JOBS = '1'`
 before that command to reduce parallel compiler processes.
 
@@ -42,11 +59,11 @@ Git and set the following in the current PowerShell session:
 
 ```powershell
 $env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\algorithshot.key"
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ''
+# Set TAURI_SIGNING_PRIVATE_KEY_PASSWORD from your secret store if required.
 pnpm release:build
 ```
 
-Set the password if the backed-up key has been encrypted. The build command
+The build command
 supplies the configured public key to the Rust compiler through
 `TAURI_UPDATER_PUBLIC_KEY` and to Tauri's bundler using a config override.
 It rejects an environment public key that differs from the one in the config.
@@ -62,7 +79,8 @@ Private keys are used only by Tauri's signing step and never embedded in the app
 3. The NSIS folder contains the versioned `.exe`, its `.sig`, and `latest.json`.
    Review them, then attach all three to a GitHub release in
    `algorithco/algorith-shot-releases` with the matching tag, for example
-   `v0.2.0`. Tag the source commit in this repository with the same tag.
+   `v0.2.0`. Tag the exact source commit in `algorithco/AlgorithShot` with the
+   same tag, and link that source tag and the changelog in the release notes.
 4. Publish it as a stable release. Installed older versions will then show the
    update banner. Drafts and prereleases do not become the `latest` feed.
 

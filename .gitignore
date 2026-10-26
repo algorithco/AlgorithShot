@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 *.tsbuildinfo
+desktop/public/ocr/
 
 # Local service configuration; keep the documented example in Git.
 .env
@@ -22,6 +23,9 @@ dist-ssr
 .local/
 *.key
 *.key.pub
+*.pem
+*.pfx
+*.p12
 
 # Editor directories and files
 .vscode/*

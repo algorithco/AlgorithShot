@@ -1,6 +1,4 @@
-# The pages and API are checked on Linux. The Rust core calls Windows APIs and only
-# builds on Windows, so that one job runs there (private repositories count
-# Windows minutes double).
+# Check the pages and API on Linux and the native app on each supported OS.
 # Immutable action commits correspond to these official releases:
 # https://github.com/actions/checkout/releases/tag/v7.0.1
 # https://github.com/actions/setup-node/releases/tag/v7.0.0
@@ -10,8 +8,10 @@ name: CI
 
 on:
   pull_request:
+  merge_group:
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, codex/open-source-multiplatform]
   # No workflow-level paths-ignore: the full-history secret scan must run even
   # when a pull request changes only documentation.
 
@@ -28,30 +28,53 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 10.29.3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24.13.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:release
+      - run: pnpm test:ocr
       - run: pnpm build
 
   core:
-    runs-on: windows-latest
-    timeout-minutes: 40
+    name: core (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: macos-15
+            platform: macos
+          - os: ubuntu-24.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/desktop/src-tauri/target/local
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 10.29.3
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev xvfb dbus-x11
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24.13.0
+          node-version-file: .node-version
           cache: pnpm
       # The app embeds the built pages.
       - run: pnpm install --frozen-lockfile
@@ -62,12 +85,25 @@ jobs:
           rustup default 1.98.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: desktop/src-tauri -> target
+          workspaces: desktop/src-tauri -> target/local
+      - name: Build and verify the standalone app without signing secrets
+        run: pnpm desktop:build:local --debug
       - name: Test
         working-directory: desktop/src-tauri
         # Tests that need a real screen or Windows' OCR languages run on a PC only.
         run: cargo test --lib --locked --features tauri/custom-protocol -- --skip live_tests --skip grabs_the_main_monitor
+      - name: Verify offline OCR in the macOS webview
+        if: matrix.platform == 'macos'
+        timeout-minutes: 4
+        run: desktop/src-tauri/target/local/debug/algorithco-shot --verify-ocr
+      - name: Verify offline OCR in the Linux webview
+        if: matrix.platform == 'linux'
+        timeout-minutes: 4
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+        run: xvfb-run -a dbus-run-session -- desktop/src-tauri/target/local/debug/algorithco-shot --verify-ocr
       - name: Check native installer UI
+        if: matrix.platform == 'windows'
         run: powershell -NoProfile -File desktop/dev/build-installer-ui.ps1
 
   audit:
@@ -75,12 +111,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 10.29.3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24.13.0
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod --audit-level high
@@ -92,6 +130,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Run Gitleaks from a pinned release
         # Direct CLI use avoids the organization-repository license required
         # by gitleaks-action. The release checksum is verified before use.
@@ -103,7 +142,7 @@ jobs:
           curl -sSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           sha256sum -c --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
           tar xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
-          ./gitleaks git . --redact --no-banner --no-color --verbose
+          ./gitleaks git . --log-opts="--all --full-history" --redact --no-banner --no-color
 
   ci:
     name: CI

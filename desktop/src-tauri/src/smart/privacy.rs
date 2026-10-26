@@ -9,9 +9,12 @@ use anyhow::Result;
 use image::RgbaImage;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
 use std::cell::RefCell;
 use std::sync::LazyLock;
+#[cfg(target_os = "windows")]
 use windows::Graphics::Imaging::{BitmapPixelFormat, SoftwareBitmap};
+#[cfg(target_os = "windows")]
 use windows::Media::FaceAnalysis::FaceDetector;
 
 use super::ocr::{Line, OcrText};
@@ -186,11 +189,13 @@ pub fn find_in_text(results: &[OcrText]) -> Vec<Finding> {
     out
 }
 
+#[cfg(target_os = "windows")]
 thread_local! {
     static DETECTOR: RefCell<Option<FaceDetector>> = const { RefCell::new(None) };
 }
 
 /// Faces, via the offline Windows face detector.
+#[cfg(target_os = "windows")]
 pub fn find_faces(img: &RgbaImage) -> Result<Vec<Finding>> {
     let (w, h) = img.dimensions();
     let scale = (1280.0 / w.max(h) as f64).min(1.0);
@@ -223,6 +228,29 @@ pub fn find_faces(img: &RgbaImage) -> Result<Vec<Finding>> {
     Ok(out)
 }
 
+#[cfg(not(target_os = "windows"))]
+pub fn find_faces(img: &RgbaImage) -> Result<Vec<Finding>> {
+    let (w, h) = img.dimensions();
+    if w == 0 || h == 0 { return Ok(Vec::new()); }
+    let scale = (1280.0 / w.max(h) as f64).min(1.0);
+    let small = if scale < 1.0 { imaging::resize(img, ((w as f64 * scale) as u32).max(1), ((h as f64 * scale) as u32).max(1))? } else { img.clone() };
+    let gray = image::DynamicImage::ImageRgba8(small).into_luma8();
+    let model = rustface::read_model(std::io::Cursor::new(include_bytes!("../../models/seeta_fd_frontal_v1.0.bin")))?;
+    let mut detector = rustface::create_detector_with_model(model);
+    detector.set_min_face_size(20);
+    detector.set_score_thresh(2.0);
+    detector.set_pyramid_scale_factor(0.8);
+    detector.set_slide_window_step(4, 4);
+    let data = rustface::ImageData::new(gray.as_raw(), gray.width(), gray.height());
+    Ok(detector.detect(&data).into_iter().filter_map(|face| {
+        let b = face.bbox();
+        let pad = (b.width() as f64 / scale * 0.15) as i32;
+        let rect = Rect::new((b.x() as f64 / scale) as i32 - pad, (b.y() as f64 / scale) as i32 - pad,
+            (b.width() as f64 / scale) as i32 + pad * 2, (b.height() as f64 / scale) as i32 + pad * 2);
+        rect.intersect(&Rect::new(0, 0, w as i32, h as i32)).map(|rect| Finding { kind: "face".into(), preview: String::new(), rect })
+    }).collect())
+}
+
 /// Everything private in an image: text matches plus faces.
 pub fn scan(img: &RgbaImage, text: &[OcrText]) -> Vec<Finding> {
     let mut found = find_in_text(text);
@@ -236,6 +264,13 @@ pub fn scan(img: &RgbaImage, text: &[OcrText]) -> Vec<Finding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn the_embedded_face_model_loads_and_ignores_an_empty_scene() {
+        let image = RgbaImage::from_pixel(100, 100, image::Rgba([255, 255, 255, 255]));
+        assert!(find_faces(&image).unwrap().is_empty());
+    }
     use crate::smart::ocr::Word;
 
     /// A line whose words sit side by side, 10 px per character.

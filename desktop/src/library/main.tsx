@@ -7,7 +7,7 @@ import { UpdateFrame } from "./UpdateBanner";
 import { startUpdateChecks } from "./updates";
 
 const desktop = "__TAURI_INTERNALS__" in window;
-if (desktop && !import.meta.env.DEV) {
+if (desktop && !import.meta.env.DEV && import.meta.env.VITE_DISABLE_UPDATES !== "1") {
   const stop = startUpdateChecks();
   import.meta.hot?.dispose(stop);
 }

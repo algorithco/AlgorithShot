@@ -1,8 +1,11 @@
 [package]
 name = "algorithco-shot"
 version = "0.1.2"
-description = "A Tauri App"
-authors = ["you"]
+description = "An offline Windows screenshot app with OCR search and privacy tools"
+authors = ["Algorithco and contributors"]
+license = "MIT"
+repository = "https://github.com/algorithco/AlgorithShot"
+readme = "../../README.md"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -18,7 +21,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["image-png", "tray-icon"] }
+tauri = { version = "2", features = ["image-png", "tray-icon", "macos-private-api"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -41,6 +44,9 @@ notify = "8.2.0"
 notify-debouncer-mini = "0.7.0"
 rxing = { version = "0.9.3", default-features = false, features = ["decoders", "multi_barcode_readers", "encoding_rs", "full_barcode_format_support"] }
 tauri-plugin-drag = "2.1.1"
+sys-locale = "0.3.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_System_Threading", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_System_DataExchange", "Win32_System_Memory", "Win32_System_Ole", "Win32_UI_Shell", "Win32_System_WinRT", "Win32_System_Variant", "Win32_UI_Input_KeyboardAndMouse", "Win32_Globalization", "Win32_System_Registry", "Win32_System_LibraryLoader", "Media_Ocr", "Graphics_Imaging", "Storage_Streams", "Foundation", "Foundation_Collections", "Globalization", "Media_FaceAnalysis"] }
 
 
@@ -58,6 +64,19 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "~2.11.0"
 tauri-plugin-process = "~2.3.1"
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+clipboard-rs = { version = "0.3.5", features = ["wayland"] }
+rustface = "0.1.7"
+xcap = "0.9.8"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.14.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+icns = "0.5.0"
+plist = "1.10.3"
+objc2-foundation = { version = "0.3.2", features = ["NSFileManager", "NSURL", "NSString"] }
 
 [dev-dependencies]
 qrcode = { version = "0.14.1", default-features = false, features = ["image"] }

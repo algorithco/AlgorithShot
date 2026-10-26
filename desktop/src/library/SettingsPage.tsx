@@ -41,7 +41,7 @@ export function SettingsPage() {
 
   const setKey = (k: keyof Hotkeys, v: string) => save({ hotkeys: { ...settings.hotkeys, [k]: v } });
   const keyStatus = (key: string) => status.find((s) => s.key === key);
-  const printScreenBlocked = info?.printScreenTaken && settings.hotkeys.capture === "PrintScreen";
+  const printScreenBlocked = info?.printScreenTaken && Object.values(settings.hotkeys).some((key) => key.toLowerCase() === "printscreen");
 
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");

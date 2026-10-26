@@ -8,7 +8,7 @@ const initial: Settings = {
   copyAfterCapture: true, showCard: true, openEditor: false, cardSeconds: 6,
   snap: true, highlight: false, elements: true, launchAtLogin: false, indexText: true, privacyCheck: true,
   autoCleanDays: 0, sound: false, welcomeDone: false, setupVersion: 0,
-  hotkeys: { capture: "PrintScreen", captureAlt: "Ctrl+Shift+PrintScreen", text: "", qr: "", fullScreen: "", repeat: "", library: "" },
+  hotkeys: { capture: "Ctrl+Alt+A", captureAlt: "PrintScreen", text: "", qr: "", fullScreen: "", repeat: "", library: "" },
 };
 
 describe("guided setup", () => {
@@ -24,7 +24,7 @@ describe("guided setup", () => {
     const draft = setupDraft(initial);
     draft.hotkeys.capture = "Ctrl+Shift+KeyS";
     draft.language = "ru";
-    expect(initial.hotkeys.capture).toBe("PrintScreen");
+    expect(initial.hotkeys.capture).toBe("Ctrl+Alt+A");
     expect(initial.language).toBe("uz");
     expect(draft.setupVersion).toBe(0);
   });

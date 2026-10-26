@@ -4,6 +4,7 @@ The independent AlgorithShot backend, using TypeScript, Node.js and Fastify.
 This initial service provides health and API information endpoints. Accounts,
 authentication, a server database, screenshot uploads and synchronization need
 separate product requirements and are not implemented in this foundation.
+The API is open source under the repository's [MIT License](../LICENSE).
 
 ## Run
 

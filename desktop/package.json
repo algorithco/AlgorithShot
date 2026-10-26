@@ -1,15 +1,23 @@
 {
   "name": "@algorithco/shot-desktop",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "description": "AlgorithShot Windows desktop app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorithco/AlgorithShot.git",
+    "directory": "desktop"
+  },
   "version": "0.1.2",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "node scripts/prepare-ocr.mjs && vite",
+    "build": "node scripts/prepare-ocr.mjs && tsc && vite build",
+    "build:local": "node scripts/build-local.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
+    "test:ocr": "node --test scripts/ocr.test.mjs",
     "typecheck": "tsc --noEmit",
     "release:build": "node scripts/build-release.mjs",
     "test:release": "node --test scripts/release.test.mjs"
@@ -28,6 +36,7 @@
     "lucide-react": "^1.61.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "tesseract.js": "6.0.1",
     "zustand": "^5.0.16"
   },
   "devDependencies": {

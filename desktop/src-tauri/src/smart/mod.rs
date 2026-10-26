@@ -1,12 +1,14 @@
 //! The "smart" features: reading text (OCR), the privacy shield, QR codes,
 //! UI element detection, and image fingerprints for finding duplicates.
 
+#[cfg_attr(not(target_os = "windows"), path = "../platform/ocr.rs")]
 pub mod ocr;
 pub mod privacy;
 pub mod qr;
+#[cfg_attr(not(target_os = "windows"), path = "../platform/uia.rs")]
 pub mod uia;
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "windows"))]
 mod live_tests;
 
 use anyhow::{anyhow, Result};
@@ -20,9 +22,12 @@ use crate::state::state;
 
 /// Prepares the calling thread for Windows Runtime calls (OCR, faces).
 pub fn init_thread() {
-    use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
-    unsafe {
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
     }
 }
 

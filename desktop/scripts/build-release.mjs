@@ -13,6 +13,7 @@ try {
   const localKey = join(root, ".local/updater/algorithshot.key");
   const releaseEnv = {
     ...process.env,
+    VITE_DISABLE_UPDATES: "0",
     TAURI_UPDATER_PUBLIC_KEY: process.env.TAURI_UPDATER_PUBLIC_KEY?.trim() || config.plugins?.updater?.pubkey?.trim(),
     TAURI_SIGNING_PRIVATE_KEY: process.env.TAURI_SIGNING_PRIVATE_KEY || (existsSync(localKey) ? localKey : undefined),
     TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "",

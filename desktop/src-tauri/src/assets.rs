@@ -3,7 +3,7 @@
 use tauri::{Assets, Runtime};
 
 pub fn verify<R: Runtime>(assets: &dyn Assets<R>) -> Result<usize, String> {
-    for page in ["index.html", "overlay.html", "card.html", "editor.html", "pin.html"] {
+    for page in ["index.html", "overlay.html", "card.html", "editor.html", "pin.html", "ocr.html"] {
         if assets.get(&page.into()).is_none_or(|bytes| bytes.is_empty()) {
             return Err(format!("Embedded page is missing or corrupt: {page}"));
         }
@@ -53,6 +53,6 @@ mod tests {
     #[test]
     fn all_bundled_pages_and_assets_are_readable() {
         let context: tauri::Context<tauri::Wry> = tauri::generate_context!();
-        assert!(verify(context.assets()).unwrap() >= 5);
+        assert!(verify(context.assets()).unwrap() >= 6);
     }
 }

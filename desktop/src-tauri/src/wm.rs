@@ -36,6 +36,7 @@ pub fn overlay(app: &AppHandle, m: &MonitorInfo) -> Result<WebviewWindow> {
                 .inner_size(m.rect.w as f64 / m.scale, m.rect.h as f64 / m.scale)
                 .position(m.rect.x as f64 / m.scale, m.rect.y as f64 / m.scale)
                 .build()?;
+            #[cfg(target_os = "windows")]
             win::disable_transitions(w.hwnd()?.0 as isize);
             w
         }
@@ -89,6 +90,7 @@ pub fn card(app: &AppHandle) -> Result<WebviewWindow> {
         .focusable(false)
         .inner_size(CARD_WIDTH, 140.0)
         .build()?;
+    #[cfg(target_os = "windows")]
     win::disable_transitions(w.hwnd()?.0 as isize);
     Ok(w)
 }
