@@ -47,9 +47,10 @@ fn raster_rect(logical: Rect, scale: f64, desktop_scale: f64) -> Rect {
 
 pub fn monitors() -> Vec<MonitorInfo> {
     #[cfg(target_os = "linux")]
-    if crate::platform::portal::is_wayland() {
-        // GTK can enumerate native Wayland outputs without DISPLAY or XWayland.
-        return APP.get().and_then(|app| app.available_monitors().ok()).unwrap_or_default()
+    {
+        // GTK reports native pixel bounds on X11 and can also enumerate Wayland
+        // outputs without DISPLAY. Avoid xcap's logical Xft.dpi coordinates.
+        let mut monitors: Vec<_> = APP.get().and_then(|app| app.available_monitors().ok()).unwrap_or_default()
             .into_iter().enumerate().map(|(id, m)| {
                 let rect = Rect::new(m.position().x, m.position().y, m.size().width as i32, m.size().height as i32);
                 let work = m.work_area();
@@ -57,7 +58,15 @@ pub fn monitors() -> Vec<MonitorInfo> {
                     logical: rect, rect, work: Rect::new(work.position.x, work.position.y, work.size.width as i32, work.size.height as i32),
                     scale: m.scale_factor(), primary: id == 0 }
             }).collect();
+        if let Some(primary) = APP.get().and_then(|app| app.primary_monitor().ok().flatten()) {
+            for monitor in &mut monitors { monitor.primary = monitor.rect.x == primary.position().x && monitor.rect.y == primary.position().y; }
+        }
+        monitors.sort_by_key(|m| (!m.primary, m.rect.x, m.rect.y));
+        for (id, monitor) in monitors.iter_mut().enumerate() { monitor.id = id; }
+        monitors
     }
+    #[cfg(target_os = "macos")]
+    {
     let native = match xcap::Monitor::all() {
         Ok(monitors) => monitors,
         Err(error) => { log::warn!("display enumeration: {error}"); return vec![]; }
@@ -91,6 +100,7 @@ pub fn monitors() -> Vec<MonitorInfo> {
     }
     for (id, m) in out.iter_mut().enumerate() { m.id = id; }
     out
+    }
 }
 
 pub fn overlay_position(monitor: &MonitorInfo) -> tauri::Position {
@@ -129,8 +139,9 @@ pub fn physical_point_to_logical(x: i32, y: i32) -> (i32, i32) {
 
 pub fn visible_windows() -> Vec<WindowInfo> {
     #[cfg(target_os = "linux")]
-    if crate::platform::portal::is_wayland() { return vec![]; }
+    { if crate::platform::portal::is_wayland() { vec![] } else { crate::platform::x11::windows() } }
     #[cfg(target_os = "macos")]
+    {
     let displays = monitors();
     let mut out = vec![];
     for window in xcap::Window::all().unwrap_or_default() {
@@ -140,21 +151,20 @@ pub fn visible_windows() -> Vec<WindowInfo> {
         if rect.w < 4 || rect.h < 4 { continue; }
         let app = window.app_name().unwrap_or_default();
         let title = window.title().unwrap_or_default();
-        #[cfg(target_os = "macos")]
         let pieces: Vec<_> = displays.iter().filter_map(|m| rect.intersect(&m.logical).map(|r| transform_rect(r, m))).collect();
-        #[cfg(target_os = "linux")]
-        let pieces = vec![rect];
         for rect in pieces {
             out.push(WindowInfo { hwnd: id as isize, rect, title: title.clone(), class: app.clone(), app: app.clone() });
         }
     }
     out
+    }
 }
 
 pub fn window_pid(id: isize) -> Option<u32> {
     #[cfg(target_os = "linux")]
-    if crate::platform::portal::is_wayland() { return None; }
-    xcap::Window::all().ok()?.into_iter().find(|w| w.id().ok() == Some(id as u32))?.pid().ok()
+    { if crate::platform::portal::is_wayland() { None } else { crate::platform::x11::window_pid(id) } }
+    #[cfg(target_os = "macos")]
+    { xcap::Window::all().ok()?.into_iter().find(|w| w.id().ok() == Some(id as u32))?.pid().ok() }
 }
 
 pub fn capture_frames() -> Result<Vec<(MonitorInfo, Vec<u8>)>> { capture_displays(None) }
@@ -165,17 +175,24 @@ fn capture_displays(region: Option<Rect>) -> Result<Vec<(MonitorInfo, Vec<u8>)>>
     let displays = monitors();
     if displays.is_empty() { bail!("No display is available. Reconnect a display and retry."); }
     let mut frames = vec![];
+    #[cfg(target_os = "linux")]
+    {
+        if crate::platform::portal::is_wayland() { bail!("Use the desktop screenshot picker in this session"); }
+        for monitor in displays {
+            if region.is_some_and(|r| monitor.rect.intersect(&r).is_none()) { continue; }
+            let image = crate::platform::x11::capture(monitor.rect)?;
+            frames.push((monitor, image.into_raw()));
+        }
+    }
+    #[cfg(target_os = "macos")]
     for native in xcap::Monitor::all().context("Could not enumerate displays")? {
         let id = native.id()?;
         let Some(mut monitor) = displays.iter().find(|m| m.native_id == id).cloned() else { continue; };
         if region.is_some_and(|r| monitor.rect.intersect(&r).is_none()) { continue; }
-        #[cfg(target_os = "macos")]
         let image = match crate::platform::capture_macos::capture(id)? {
             Some(image) => image,
             None => native.capture_image().context("Could not capture the display")?,
         };
-        #[cfg(target_os = "linux")]
-        let image = native.capture_image().context("Could not capture the display")?;
         monitor.rect.w = image.width() as i32;
         monitor.rect.h = image.height() as i32;
         if image.width() == 0 || image.height() == 0 { bail!("The display returned an empty image"); }

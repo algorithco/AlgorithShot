@@ -148,6 +148,8 @@ export function Overlay() {
       },
     });
     engineRef.current = engine;
+    const resize = () => engine.fitViewport();
+    window.addEventListener("resize", resize);
 
     const start = async (s: Start) => {
       sessionRef.current = s;
@@ -229,6 +231,7 @@ export function Overlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => {
+      window.removeEventListener("resize", resize);
       disposed = true;
       window.removeEventListener("keydown", onKey);
       subs.forEach((p) => p.then((un) => un()));

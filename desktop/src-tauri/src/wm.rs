@@ -49,8 +49,9 @@ pub fn overlay(app: &AppHandle, m: &MonitorInfo) -> Result<WebviewWindow> {
                 }).unwrap_or((1280.0, 800.0));
                 let fit = ((screen.0 * 0.9) / m.rect.w as f64)
                     .min((screen.1 * 0.85) / m.rect.h as f64).min(1.0);
-                builder.decorations(true).always_on_top(false).center()
-                    .inner_size(m.rect.w as f64 * fit, m.rect.h as f64 * fit)
+                builder.decorations(true).transparent(false).always_on_top(false).center()
+                    .inner_size((m.rect.w as f64 * fit).max(800.0_f64.min(screen.0 * 0.9)),
+                        (m.rect.h as f64 * fit).max(480.0_f64.min(screen.1 * 0.85)))
             } else {
                 builder
             };

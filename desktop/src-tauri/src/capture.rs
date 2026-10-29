@@ -259,12 +259,17 @@ fn present(app: &AppHandle, mode: &str, frames: Vec<Frame>, windows: Vec<WindowI
     let settings = st.settings();
     let last = st.capture.last.lock().clone();
     for frame in &session.frames {
+        if st.capture.current().is_none_or(|current| current.id != id) { return Ok(()); }
         let m = &frame.monitor;
         let overlay = wm::overlay(app, m)?;
         // Showing first also wakes a webview suspended after a long idle period.
         // Input focus is assigned only after its pixels have been prepared.
         overlay.show()?;
         st.capture.wait_for_window(overlay.label(), Duration::from_secs(15))?;
+        if st.capture.current().is_none_or(|current| current.id != id) {
+            overlay.hide()?;
+            return Ok(());
+        }
         let windows = session
             .windows
             .iter()

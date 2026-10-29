@@ -130,7 +130,7 @@ pub fn register_shortcuts(app: &AppHandle) -> Vec<HotkeyStatus> {
     pending
 }
 
-fn publish_shortcuts(app: &AppHandle, requested: &[(String, String)], actual: &BoundShortcuts, error: Option<&str>) {
+fn publish_shortcuts(app: &AppHandle, requested: &[(String, String)], actual: &[(String, Values)], error: Option<&str>) {
     let statuses: Vec<_> = requested.iter().enumerate().map(|(i, (action, key))| {
         let binding = actual.iter().find(|(id, _)| id == &shortcut_id(requested, i));
         let trigger = binding.and_then(|(_, properties)| properties.get("trigger_description"))

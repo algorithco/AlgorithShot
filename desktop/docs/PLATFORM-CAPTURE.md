@@ -33,7 +33,9 @@ element metadata, rather than ordinary image capture. Code signing and notarizat
 are separate release requirements; an ad-hoc bundle is not a notarized installer.
 
 Linux release builds use Ubuntu 22.04, reducing the glibc baseline from 2.39 to
-2.35. This does not promise compatibility with every historical distribution or
+2.35. Linux still-image capture uses X11 directly or the screenshot portal and
+does not link the unused PipeWire video-recording backend. This does not promise
+compatibility with every historical distribution or
 CPU architecture. Published Linux packages currently target x86_64; macOS bundles
 target Intel and Apple Silicon. System WebKit versions without OffscreenCanvas 2D
 use a regular canvas for image editing and decoding.
