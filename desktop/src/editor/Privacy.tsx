@@ -4,6 +4,7 @@
 import { ShieldAlert, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { editorApi, errorText, type Finding, type Rect } from "../shared/api";
+import type { RasterCanvas } from "../shared/canvas";
 import { useT, type Key } from "../shared/i18n";
 import { Segmented, toast } from "../shared/ui";
 import type { HideStyle } from "./doc";
@@ -16,7 +17,7 @@ export function PrivacyPanel({
   open,
   onHide,
 }: {
-  base: OffscreenCanvas | null;
+  base: RasterCanvas | null;
   version: number;
   open: boolean;
   onHide: (rects: Rect[], style: HideStyle) => void;
@@ -117,7 +118,7 @@ export function PrivacyPanel({
 }
 
 /** A little extra room so letter edges don't peek out. */
-function pad(r: Rect, base: OffscreenCanvas | null): Rect {
+function pad(r: Rect, base: RasterCanvas | null): Rect {
   const p = Math.max(2, Math.round(r.h * 0.15));
   const x = Math.max(0, r.x - p);
   const y = Math.max(0, r.y - p);

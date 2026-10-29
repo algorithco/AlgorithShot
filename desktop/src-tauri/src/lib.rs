@@ -18,6 +18,8 @@ mod jobs;
 mod library;
 mod pins;
 #[cfg(not(target_os = "windows"))]
+mod platform;
+#[cfg(not(target_os = "windows"))]
 #[path = "platform/checks.rs"]
 mod platform_checks;
 mod protocol;
@@ -91,8 +93,12 @@ pub fn run() {
         }
         return;
     }
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| handle_args(app, &args, false)))
+    let builder = tauri::Builder::default();
+    let isolated_check = std::env::args().any(|arg| matches!(arg.as_str(), "--verify-overlay" | "--verify-platform" | "--verify-ocr"));
+    let builder = if isolated_check { builder } else {
+        builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| handle_args(app, &args, false)))
+    };
+    let builder = builder
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(if cfg!(debug_assertions) { log::LevelFilter::Debug } else { log::LevelFilter::Info })
@@ -108,15 +114,29 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::Builder::new().args(["--hidden"]).build())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_autostart::Builder::new().args(["--hidden"]).build());
+    // The native Linux shortcut manager requires X11 even before registration.
+    // A native Wayland session uses the desktop portal instead.
+    #[cfg(target_os = "linux")]
+    let native_shortcuts = !platform::portal::is_wayland();
+    #[cfg(not(target_os = "linux"))]
+    let native_shortcuts = true;
+    let builder = if native_shortcuts {
+        builder.plugin(tauri_plugin_global_shortcut::Builder::new().build())
+    } else { builder };
+    let app = builder
         .plugin(tauri_plugin_drag::init())
         .register_asynchronous_uri_scheme_protocol("shot", protocol::handle)
         .setup(|app| {
             let handle = app.handle().clone();
             #[cfg(not(target_os = "windows"))]
+            win::init(&handle);
+            if std::env::args().any(|arg| arg == "--verify-overlay") {
+                capture::verify_overlay(&handle)?;
+                return Ok(());
+            }
+            #[cfg(not(target_os = "windows"))]
             {
-                win::init(&handle);
                 smart::ocr::init(&handle)?;
                 if std::env::args().any(|arg| arg == "--verify-ocr" || arg == "--verify-platform") {
                     let app = handle.clone();
@@ -177,6 +197,8 @@ pub fn run() {
             commands::open_keyboard_settings,
             commands::pick_folder,
             commands::capture_start,
+            commands::window_loaded,
+            commands::overlay_failed,
             commands::overlay_ready,
             commands::overlay_hide,
             commands::capture_cancel,

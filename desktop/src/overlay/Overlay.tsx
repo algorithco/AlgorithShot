@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { api, errorText, shotUrl, type CommitAction, type MonitorInfo, type Rect, type WindowInfo } from "../shared/api";
+import { context2d, createCanvas } from "../shared/canvas";
 import { useT, type Key } from "../shared/i18n";
 import { initSettings } from "../shared/settings";
 import { Engine, type Mode, type View } from "./engine";
@@ -177,10 +178,14 @@ export function Overlay() {
           snap: s.snap,
           highlight: s.highlight,
         });
-        requestAnimationFrame(() => api.overlayReady(s.sessionId, s.monitor.id));
+        // Hidden WebKit views suspend animation frames. The canvas has been
+        // drawn synchronously; showing the native window must not wait for rAF.
+        await api.overlayReady(s.sessionId, s.monitor.id);
       } catch (e) {
         console.error("overlay start", errorText(e));
-        api.captureCancel(s.sessionId);
+        if (sessionRef.current?.sessionId === s.sessionId) {
+          await api.overlayFailed(s.sessionId, errorText(e)).catch(console.error);
+        }
       }
     };
 
@@ -209,6 +214,10 @@ export function Overlay() {
       listen<number>("overlay:end", () => end()),
       listen<string>("overlay:mode", (e) => engine.setMode(e.payload as Mode)),
     ];
+    let disposed = false;
+    Promise.all(subs).then(() => {
+      if (!disposed) return api.overlayLoaded();
+    }).catch((e) => console.error("capture window initialization", errorText(e)));
 
     const onKey = (e: KeyboardEvent) => {
       if (!engine.loaded) return;
@@ -220,6 +229,7 @@ export function Overlay() {
     };
     window.addEventListener("keydown", onKey);
     return () => {
+      disposed = true;
       window.removeEventListener("keydown", onKey);
       subs.forEach((p) => p.then((un) => un()));
     };
@@ -419,8 +429,8 @@ async function decodeToPixels(blob: Blob, w: number, h: number): Promise<Uint8Cl
     const img = new Image();
     img.src = url;
     await img.decode();
-    const canvas = new OffscreenCanvas(w, h);
-    const ctx = canvas.getContext("2d")!;
+    const canvas = createCanvas(w, h);
+    const ctx = context2d(canvas);
     ctx.drawImage(img, 0, 0, w, h);
     return ctx.getImageData(0, 0, w, h).data;
   } finally {

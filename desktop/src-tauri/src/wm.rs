@@ -5,7 +5,9 @@
 //! webview from the main thread inside a sync command can deadlock.
 
 use anyhow::{anyhow, Result};
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+#[cfg(not(target_os = "macos"))]
+use tauri::PhysicalSize;
 
 use crate::win::{self, MonitorInfo};
 
@@ -23,7 +25,8 @@ pub fn overlay(app: &AppHandle, m: &MonitorInfo) -> Result<WebviewWindow> {
     let window = match app.get_webview_window(&label) {
         Some(w) => w,
         None => {
-            let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("overlay.html".into()))
+            crate::state::state(app).capture.set_window_loaded(&label, false);
+            let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("overlay.html".into()))
                 .title("AlgorithShot")
                 .decorations(false)
                 .transparent(true)
@@ -34,21 +37,45 @@ pub fn overlay(app: &AppHandle, m: &MonitorInfo) -> Result<WebviewWindow> {
                 .visible(false)
                 .focused(false)
                 .inner_size(m.rect.w as f64 / m.scale, m.rect.h as f64 / m.scale)
-                .position(m.rect.x as f64 / m.scale, m.rect.y as f64 / m.scale)
-                .build()?;
+                .on_page_load(|window, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Started {
+                        crate::state::state(window.app_handle()).capture.set_window_loaded(window.label(), false);
+                    }
+                });
+            #[cfg(target_os = "linux")]
+            let builder = if crate::platform::portal::is_wayland() {
+                let screen = app.primary_monitor()?.map(|m| {
+                    (m.size().width as f64 / m.scale_factor(), m.size().height as f64 / m.scale_factor())
+                }).unwrap_or((1280.0, 800.0));
+                let fit = ((screen.0 * 0.9) / m.rect.w as f64)
+                    .min((screen.1 * 0.85) / m.rect.h as f64).min(1.0);
+                builder.decorations(true).always_on_top(false).center()
+                    .inner_size(m.rect.w as f64 * fit, m.rect.h as f64 * fit)
+            } else {
+                builder
+            };
+            let w = builder.build()?;
             #[cfg(target_os = "windows")]
             win::disable_transitions(w.hwnd()?.0 as isize);
             w
         }
     };
-    window.set_position(PhysicalPosition::new(m.rect.x, m.rect.y))?;
+    #[cfg(target_os = "linux")]
+    if crate::platform::portal::is_wayland() { return Ok(window); }
+    window.set_position(win::overlay_position(m))?;
+    #[cfg(target_os = "macos")]
+    window.set_size(LogicalSize::new(m.rect.w as f64 / m.scale, m.rect.h as f64 / m.scale))?;
+    #[cfg(not(target_os = "macos"))]
     window.set_size(PhysicalSize::new(m.rect.w as u32, m.rect.h as u32))?;
     Ok(window)
 }
 
 /// Makes the overlays and the card ahead of time so the first capture is fast.
 pub fn precreate(app: &AppHandle) {
-    for m in win::monitors() {
+    let displays = win::monitors();
+    #[cfg(target_os = "linux")]
+    let displays = if crate::platform::portal::is_wayland() { vec![] } else { displays };
+    for m in displays {
         if let Err(e) = overlay(app, &m) {
             log::warn!("overlay for {}: {e:#}", m.name);
         }
@@ -76,6 +103,7 @@ pub fn card(app: &AppHandle) -> Result<WebviewWindow> {
     if let Some(w) = app.get_webview_window("card") {
         return Ok(w);
     }
+    crate::state::state(app).capture.set_window_loaded("card", false);
     let w = WebviewWindowBuilder::new(app, "card", WebviewUrl::App("card.html".into()))
         .title("AlgorithShot")
         .decorations(false)
@@ -89,6 +117,11 @@ pub fn card(app: &AppHandle) -> Result<WebviewWindow> {
         // Notifications must not take focus when Tauri shows them.
         .focusable(false)
         .inner_size(CARD_WIDTH, 140.0)
+        .on_page_load(|window, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                crate::state::state(window.app_handle()).capture.set_window_loaded("card", false);
+            }
+        })
         .build()?;
     #[cfg(target_os = "windows")]
     win::disable_transitions(w.hwnd()?.0 as isize);
@@ -105,7 +138,7 @@ pub fn place_card(_app: &AppHandle, w: &WebviewWindow, width: f64, height: f64) 
     let px_w = (width * m.scale).round() as i32;
     let px_h = (height * m.scale).round() as i32;
     let margin = (CARD_MARGIN * m.scale).round() as i32;
-    w.set_position(PhysicalPosition::new(m.work.right() - px_w - margin, m.work.bottom() - px_h - margin))?;
+    w.set_position(win::desktop_position(m.work.right() - px_w - margin, m.work.bottom() - px_h - margin))?;
     Ok(())
 }
 

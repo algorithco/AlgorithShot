@@ -91,7 +91,7 @@ export type ListQuery = {
   limit?: number;
 };
 
-export type HotkeyStatus = { action: string; key: string; ok: boolean; error: string | null };
+export type HotkeyStatus = { action: string; key: string; ok: boolean; error: string | null; trigger?: string };
 
 export type AppInfo = {
   version: string;
@@ -148,6 +148,8 @@ export const api = {
   pickFolder: () => invoke<string | null>("pick_folder"),
 
   captureStart: (mode: string, delay?: number) => invoke<void>("capture_start", { mode, delay }),
+  overlayLoaded: () => invoke<void>("window_loaded"),
+  overlayFailed: (sessionId: number, message: string) => invoke<void>("overlay_failed", { sessionId, message }),
   overlayReady: (sessionId: number, monitorId: number) => invoke<void>("overlay_ready", { sessionId, monitorId }),
   overlayHide: () => invoke<void>("overlay_hide"),
   captureCancel: (sessionId: number) => invoke<void>("capture_cancel", { sessionId }),
@@ -161,6 +163,7 @@ export const api = {
     invoke<TextLine[]>("capture_read_text", { sessionId, monitorId, rect }),
   copyText: (text: string) => invoke<void>("copy_text", { text }),
 
+  cardLoaded: () => invoke<void>("window_loaded"),
   cardReady: (width: number, height: number) => invoke<void>("card_ready", { width, height }),
   cardHide: () => invoke<void>("card_hide"),
   tempSave: (tempId: string) => invoke<Shot>("temp_save", { tempId }),

@@ -2,48 +2,49 @@
 // and producing the final pixels to save.
 
 import type { Rect } from "../shared/api";
+import { context2d, createCanvas, type RasterCanvas } from "../shared/canvas";
 import type { HideStyle, Mark, Op } from "./doc";
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-function blank(w: number, h: number): OffscreenCanvas {
-  return new OffscreenCanvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+function blank(w: number, h: number): RasterCanvas {
+  return createCanvas(w, h);
 }
 
-function clone(src: OffscreenCanvas): OffscreenCanvas {
+function clone(src: RasterCanvas): RasterCanvas {
   const c = blank(src.width, src.height);
-  c.getContext("2d")!.drawImage(src, 0, 0);
+  context2d(c).drawImage(src, 0, 0);
   return c;
 }
 
-export function fromBitmap(img: ImageBitmap): OffscreenCanvas {
+export function fromBitmap(img: ImageBitmap): RasterCanvas {
   const c = blank(img.width, img.height);
-  c.getContext("2d")!.drawImage(img, 0, 0);
+  context2d(c).drawImage(img, 0, 0);
   return c;
 }
 
-export function applyOp(src: OffscreenCanvas, op: Op): OffscreenCanvas {
+export function applyOp(src: RasterCanvas, op: Op): RasterCanvas {
   switch (op.kind) {
     case "crop": {
       const c = blank(op.rect.w, op.rect.h);
-      c.getContext("2d")!.drawImage(src, -op.rect.x, -op.rect.y);
+      context2d(c).drawImage(src, -op.rect.x, -op.rect.y);
       return c;
     }
     case "erase": {
       const c = clone(src);
-      c.getContext("2d")!.clearRect(op.rect.x, op.rect.y, op.rect.w, op.rect.h);
+      context2d(c).clearRect(op.rect.x, op.rect.y, op.rect.w, op.rect.h);
       return c;
     }
     case "eraseStroke": {
       const c = clone(src);
-      const ctx = c.getContext("2d")!;
+      const ctx = context2d(c);
       ctx.globalCompositeOperation = "destination-out";
       strokePath(ctx, op.points, op.size, "#000");
       return c;
     }
     case "patch": {
       const c = clone(src);
-      const ctx = c.getContext("2d")!;
+      const ctx = context2d(c);
       ctx.clearRect(op.at.x, op.at.y, op.image.width, op.image.height);
       ctx.drawImage(op.image, op.at.x, op.at.y);
       return c;
@@ -52,20 +53,20 @@ export function applyOp(src: OffscreenCanvas, op: Op): OffscreenCanvas {
       const band = op.to - op.from;
       if (op.axis === "horizontal") {
         const c = blank(src.width, src.height - band);
-        const ctx = c.getContext("2d")!;
+        const ctx = context2d(c);
         ctx.drawImage(src, 0, 0, src.width, op.from, 0, 0, src.width, op.from);
         ctx.drawImage(src, 0, op.to, src.width, src.height - op.to, 0, op.from, src.width, src.height - op.to);
         return c;
       }
       const c = blank(src.width - band, src.height);
-      const ctx = c.getContext("2d")!;
+      const ctx = context2d(c);
       ctx.drawImage(src, 0, 0, op.from, src.height, 0, 0, op.from, src.height);
       ctx.drawImage(src, op.to, 0, src.width - op.to, src.height, op.from, 0, src.width - op.to, src.height);
       return c;
     }
     case "hide": {
       const c = clone(src);
-      hide(c.getContext("2d")!, src, op.rect, op.style, op.strength);
+      hide(context2d(c), src, op.rect, op.style, op.strength);
       return c;
     }
     case "rasterize":
@@ -76,7 +77,7 @@ export function applyOp(src: OffscreenCanvas, op: Op): OffscreenCanvas {
 }
 
 /** Covers private data. Pixelate and solid can't be undone by "un-blurring". */
-function hide(ctx: Ctx, src: OffscreenCanvas, r: Rect, style: HideStyle, strength: number) {
+function hide(ctx: Ctx, src: RasterCanvas, r: Rect, style: HideStyle, strength: number) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(r.x, r.y, r.w, r.h);
@@ -84,7 +85,7 @@ function hide(ctx: Ctx, src: OffscreenCanvas, r: Rect, style: HideStyle, strengt
   if (style === "solid") {
     ctx.fillStyle = "#111111";
     ctx.fillRect(r.x, r.y, r.w, r.h);
-  } else if (style === "blur") {
+  } else if (style === "blur" && "filter" in ctx) {
     ctx.filter = `blur(${Math.max(2, strength)}px)`;
     ctx.drawImage(src, 0, 0);
   } else {
@@ -92,7 +93,7 @@ function hide(ctx: Ctx, src: OffscreenCanvas, r: Rect, style: HideStyle, strengt
     const sw = Math.max(1, Math.ceil(r.w / block));
     const sh = Math.max(1, Math.ceil(r.h / block));
     const small = blank(sw, sh);
-    const sctx = small.getContext("2d")!;
+    const sctx = context2d(small);
     sctx.imageSmoothingQuality = "high";
     sctx.drawImage(src, r.x, r.y, sw * block, sh * block, 0, 0, sw, sh);
     ctx.imageSmoothingEnabled = false;
@@ -139,7 +140,7 @@ function strokePath(ctx: Ctx, points: { x: number; y: number }[], size: number, 
  */
 export class BaseRenderer {
   private ops: Op[] = [];
-  private cache = new Map<number, { canvas: OffscreenCanvas; used: number }>();
+  private cache = new Map<number, { canvas: RasterCanvas; used: number }>();
   private cachedBytes = 0;
   private clock = 0;
 
@@ -147,7 +148,7 @@ export class BaseRenderer {
     this.remember(0, fromBitmap(original));
   }
 
-  render(ops: Op[]): OffscreenCanvas {
+  render(ops: Op[]): RasterCanvas {
     // How many leading ops are unchanged since the last render.
     let same = 0;
     while (same < ops.length && same < this.ops.length && this.ops[same] === ops[same]) same++;
@@ -174,11 +175,11 @@ export class BaseRenderer {
     return canvas;
   }
 
-  private bytes(canvas: OffscreenCanvas): number {
+  private bytes(canvas: RasterCanvas): number {
     return canvas.width * canvas.height * 4;
   }
 
-  private remember(index: number, canvas: OffscreenCanvas) {
+  private remember(index: number, canvas: RasterCanvas) {
     const previous = this.cache.get(index);
     if (previous) this.cachedBytes -= this.bytes(previous.canvas);
     this.cache.set(index, { canvas, used: ++this.clock });
@@ -365,9 +366,9 @@ function luminance(hex: string): number {
 }
 
 /** Base plus marks, as the final image. */
-export function flatten(base: OffscreenCanvas, marks: Mark[]): OffscreenCanvas {
+export function flatten(base: RasterCanvas, marks: Mark[]): RasterCanvas {
   const c = clone(base);
-  const ctx = c.getContext("2d")!;
+  const ctx = context2d(c);
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, c.width, c.height);
@@ -377,9 +378,9 @@ export function flatten(base: OffscreenCanvas, marks: Mark[]): OffscreenCanvas {
   return c;
 }
 
-export function rgbaOf(canvas: OffscreenCanvas, r?: Rect): Uint8Array {
+export function rgbaOf(canvas: RasterCanvas, r?: Rect): Uint8Array {
   const area = r ?? { x: 0, y: 0, w: canvas.width, h: canvas.height };
-  const data = canvas.getContext("2d")!.getImageData(area.x, area.y, area.w, area.h).data;
+  const data = context2d(canvas).getImageData(area.x, area.y, area.w, area.h).data;
   return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
 }
 

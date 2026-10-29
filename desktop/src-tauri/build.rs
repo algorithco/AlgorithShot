@@ -1,4 +1,16 @@
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rerun-if-changed=src/platform/capture_macos.m");
+        cc::Build::new()
+            .file("src/platform/capture_macos.m")
+            .flag("-fobjc-arc")
+            .compile("algorithshot_capture_macos");
+        println!("cargo:rustc-link-lib=framework=Foundation");
+        println!("cargo:rustc-link-lib=framework=CoreGraphics");
+        // ScreenCaptureKit is absent on 12.0–12.2. The bridge gates its use
+        // with @available and leaves those releases on Core Graphics.
+        println!("cargo:rustc-link-arg=-Wl,-weak_framework,ScreenCaptureKit");
+    }
     // Tauri reuses compressed assets by content hash without validating the
     // cached bytes. A truncated entry otherwise survives normal rebuilds and
     // appears as "asset not found" at runtime. Recreate only this crate's cache.

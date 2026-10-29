@@ -22,6 +22,7 @@ name = "algorithco-shot"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "cc",
  "chrono",
  "clipboard-rs",
  "fast_image_resize",
@@ -60,6 +61,7 @@ dependencies = [
  "windows 0.62.2",
  "x11rb 0.14.0",
  "xcap",
+ "zbus",
 ]
 
 [[package]]

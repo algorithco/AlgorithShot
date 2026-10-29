@@ -48,7 +48,7 @@ pub fn register_all(app: &AppHandle) -> Vec<HotkeyStatus> {
     for (action, key) in hotkeys.bindings() {
         if key.eq_ignore_ascii_case("PrintScreen") && hook_running(app) {
             print_screen = Some(action);
-            status.push(HotkeyStatus { action: action.to_string(), key: key.to_string(), ok: true, error: None });
+            status.push(HotkeyStatus { action: action.to_string(), key: key.to_string(), ok: true, error: None, trigger: None });
             continue;
         }
         let res = gs.on_shortcut(key, move |app, _shortcut, event| {
@@ -64,6 +64,7 @@ pub fn register_all(app: &AppHandle) -> Vec<HotkeyStatus> {
             key: key.to_string(),
             ok: res.is_ok(),
             error: res.err().map(|e| e.to_string()),
+            trigger: None,
         });
     }
     *PRINT_SCREEN.lock() = print_screen;

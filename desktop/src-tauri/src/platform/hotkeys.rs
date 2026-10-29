@@ -5,6 +5,8 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use crate::{capture, wm, state::{state, HotkeyStatus}};
 
 pub fn register_all(app: &AppHandle) -> Vec<HotkeyStatus> {
+    #[cfg(target_os = "linux")]
+    if crate::platform::portal::is_wayland() { return crate::platform::portal::register_shortcuts(app); }
     let shortcuts = app.global_shortcut();
     let _ = shortcuts.unregister_all();
     let bindings = state(app).settings().hotkeys;
@@ -12,13 +14,15 @@ pub fn register_all(app: &AppHandle) -> Vec<HotkeyStatus> {
         let result = shortcuts.on_shortcut(key, move |app, _, event| {
             if event.state == ShortcutState::Pressed { run(app, action); }
         });
-        HotkeyStatus { action: action.into(), key: key.into(), ok: result.is_ok(), error: result.err().map(|e| e.to_string()) }
+        HotkeyStatus { action: action.into(), key: key.into(), ok: result.is_ok(), error: result.err().map(|e| e.to_string()), trigger: None }
     }).collect();
     *state(app).hotkeys.lock() = statuses.clone();
     statuses
 }
 
 pub fn set_recording(app: &AppHandle, on: bool) -> Vec<HotkeyStatus> {
+    #[cfg(target_os = "linux")]
+    if crate::platform::portal::is_wayland() { return crate::platform::portal::set_recording(app, on); }
     if on { let _ = app.global_shortcut().unregister_all(); Vec::new() } else { register_all(app) }
 }
 

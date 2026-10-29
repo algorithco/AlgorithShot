@@ -13,6 +13,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import type { Rect } from "../shared/api";
+import { context2d, createCanvas, type RasterCanvas } from "../shared/canvas";
 import { useT } from "../shared/i18n";
 import { contains, fromPoints, handleAt, intersect, type Handle, type Pt } from "../shared/geometry";
 import { dragCrop } from "./crop";
@@ -52,7 +53,7 @@ type Drag =
 type TextEdit = { at: Pt; value: string; id?: string };
 
 type Props = {
-  base: OffscreenCanvas | null;
+  base: RasterCanvas | null;
   version: number;
   doc: Doc;
   tool: Tool;
@@ -325,7 +326,7 @@ export function Stage(p: Props) {
     if (tool === "eyedropper") {
       const base = props.current.base;
       if (base) {
-        const [r, g, b, a] = flatten(base, doc.marks).getContext("2d")!.getImageData(Math.floor(pt.x), Math.floor(pt.y), 1, 1).data;
+        const [r, g, b, a] = context2d(flatten(base, doc.marks)).getImageData(Math.floor(pt.x), Math.floor(pt.y), 1, 1).data;
         if (a) props.current.onPickColor(`#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`);
       }
       releasePointer();
@@ -658,8 +659,8 @@ let pattern: { theme: string; value: CanvasPattern } | null = null;
 function checker(ctx: CanvasRenderingContext2D): CanvasPattern {
   const theme = document.documentElement.dataset.theme ?? "light";
   if (pattern?.theme === theme) return pattern.value;
-  const tile = new OffscreenCanvas(16, 16);
-  const t = tile.getContext("2d")!;
+  const tile = createCanvas(16, 16);
+  const t = context2d(tile);
   const [a, b] = theme === "dark" ? ["#1d1d1c", "#141414"] : ["#ffffff", "#ecece8"];
   t.fillStyle = a;
   t.fillRect(0, 0, 16, 16);

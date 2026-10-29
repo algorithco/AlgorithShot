@@ -25,7 +25,8 @@ jobs:
           - os: macos-15
             platform: darwin-universal
             args: '--target universal-apple-darwin'
-          - os: ubuntu-24.04
+          # Build against the oldest supported glibc/WebKitGTK baseline.
+          - os: ubuntu-22.04
             platform: linux-x86_64
             args: ''
     runs-on: ${{ matrix.os }}

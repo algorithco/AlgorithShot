@@ -158,6 +158,18 @@ pub fn capture_start(app: AppHandle, mode: String, delay: Option<u32>) {
 }
 
 #[tauri::command]
+pub fn window_loaded(app: AppHandle, window: WebviewWindow) {
+    if window.label().starts_with("overlay-") || window.label() == "card" {
+        state(&app).capture.set_window_loaded(window.label(), true);
+    }
+}
+
+#[tauri::command]
+pub async fn overlay_failed(app: AppHandle, session_id: u64, message: String) {
+    capture::failed(&app, session_id, &message);
+}
+
+#[tauri::command]
 pub fn overlay_ready(app: AppHandle, window: WebviewWindow, session_id: u64, monitor_id: usize) -> CmdResult<()> {
     capture::overlay_ready(&app, &window, session_id, monitor_id).map_err(anyhow_err)
 }

@@ -41,7 +41,13 @@ impl Card {
 }
 
 pub fn show(app: &AppHandle, card: Card) {
-    if let Err(e) = wm::card(app).and_then(|w| w.emit("card:show", card).map_err(Into::into)) {
+    if let Err(e) = (|| -> anyhow::Result<()> {
+        let window = wm::card(app)?;
+        window.show()?;
+        crate::state::state(app).capture.wait_for_window("card", std::time::Duration::from_secs(15))?;
+        window.emit("card:show", card)?;
+        Ok(())
+    })() {
         log::warn!("card: {e:#}");
     }
 }
