@@ -94,13 +94,17 @@ fn capture_options<'a>(mode: &str, version: u32, available: u32, handle: &'a str
 
 pub fn screenshot(mode: &str) -> Result<Option<Screenshot>> {
     let connection = connection()?;
-    let proxy = Proxy::new(&connection, DESKTOP, DESKTOP_PATH, "org.freedesktop.portal.Screenshot")
+    capture_on(&connection, mode)
+}
+
+fn capture_on(connection: &Connection, mode: &str) -> Result<Option<Screenshot>> {
+    let proxy = Proxy::new(connection, DESKTOP, DESKTOP_PATH, "org.freedesktop.portal.Screenshot")
         .context("Screen capture is unavailable. Install the screenshot portal for your desktop.")?;
     let handle = token();
     let version = proxy.get_property::<u32>("version").unwrap_or(1);
     let available = if version >= 3 { proxy.get_property::<u32>("AvailableTargets").unwrap_or(0) } else { 0 };
     let (options, selected) = capture_options(mode, version, available, &handle);
-    let Some(mut result) = request(&connection, &proxy, "Screenshot", &("", options))? else { return Ok(None); };
+    let Some(mut result) = request(connection, &proxy, "Screenshot", &("", options))? else { return Ok(None); };
     let uri = String::try_from(result.remove("uri").context("The desktop returned no captured image")?)?;
     let path = tauri::Url::parse(&uri)?.to_file_path().map_err(|_| anyhow!("The desktop returned an invalid image location"))?;
     // The portal owns this file. Never remove a path returned by another process.
@@ -290,15 +294,20 @@ mod tests {
     }
     impl Drop for Bus { fn drop(&mut self) { let _ = self.0.kill(); let _ = self.0.wait(); } }
 
-    struct ScreenshotPortal { response: u32, respond: bool }
+    struct ScreenshotPortal { response: u32, respond: bool, version: u32, targets: u32, uri: String }
     #[zbus::interface(name = "org.freedesktop.portal.Screenshot")]
     impl ScreenshotPortal {
+        #[zbus(property, name = "version")]
+        fn version(&self) -> u32 { self.version }
+        #[zbus(property)]
+        fn available_targets(&self) -> u32 { self.targets }
+
         async fn screenshot(&self, _parent: &str, _options: Values, #[zbus(connection)] connection: &zbus::Connection)
             -> zbus::fdo::Result<OwnedObjectPath>
         {
             let path = OwnedObjectPath::try_from("/org/freedesktop/portal/desktop/request/test/returned_path").unwrap();
             if self.respond {
-                let values = HashMap::from([("uri".to_owned(), OwnedValue::from(zbus::zvariant::Str::from("file:///tmp/portal-test.png")))]);
+                let values = HashMap::from([("uri".to_owned(), OwnedValue::from(zbus::zvariant::Str::from(self.uri.clone())))]);
                 // Deliberately respond before returning the request handle.
                 connection.emit_signal(None::<&str>, path.as_str(), "org.freedesktop.portal.Request", "Response", &(self.response, values)).await?;
             }
@@ -311,7 +320,7 @@ mod tests {
         for (code, respond) in [(0, true), (1, true), (0, false)] {
             let bus = Bus::new();
             let _server = Builder::address(bus.1.as_str()).unwrap().name(DESKTOP).unwrap()
-                .serve_at(DESKTOP_PATH, ScreenshotPortal { response: code, respond }).unwrap().build().unwrap();
+                .serve_at(DESKTOP_PATH, ScreenshotPortal { response: code, respond, version: 2, targets: 0, uri: "file:///tmp/portal-test.png".into() }).unwrap().build().unwrap();
             let connection = bus.connection();
             let proxy = Proxy::new(&connection, DESKTOP, DESKTOP_PATH, "org.freedesktop.portal.Screenshot").unwrap();
             let result = request_with_timeout(&connection, &proxy, "Screenshot", &("", Values::new()), Duration::from_millis(200));
@@ -319,6 +328,27 @@ mod tests {
             else if code == 1 { assert!(result.unwrap().is_none()); }
             else { assert_eq!(String::try_from(result.unwrap().unwrap().remove("uri").unwrap()).unwrap(), "file:///tmp/portal-test.png"); }
         }
+    }
+
+    #[test]
+    fn portal_decodes_local_image_uris_and_distinguishes_native_from_app_selection() {
+        let path = std::env::temp_dir().join(format!("algorithshot portal ёʻ {}.png", uuid::Uuid::new_v4()));
+        let expected = RgbaImage::from_pixel(8, 4, image::Rgba([17, 31, 109, 255]));
+        expected.save(&path).unwrap();
+        let result = (|| -> Result<()> {
+            for (version, targets, selected) in [(2, 0, false), (3, 7, true), (3, 1, false)] {
+                let bus = Bus::new();
+                let _server = Builder::address(bus.1.as_str())?.name(DESKTOP)?
+                    .serve_at(DESKTOP_PATH, ScreenshotPortal { response: 0, respond: true, version, targets,
+                        uri: tauri::Url::from_file_path(&path).unwrap().to_string() })?.build()?;
+                let screenshot = capture_on(&bus.connection(), "region")?.unwrap();
+                assert_eq!(screenshot.image, expected);
+                assert_eq!(screenshot.selected, selected);
+            }
+            Ok(())
+        })();
+        let _ = std::fs::remove_file(&path);
+        result.unwrap();
     }
 
     #[test]
