@@ -175,7 +175,8 @@ pub fn overlay_ready(app: AppHandle, window: WebviewWindow, session_id: u64, mon
 }
 
 #[tauri::command]
-pub fn overlay_hide(window: WebviewWindow) -> CmdResult<()> {
+pub fn overlay_hide(app: AppHandle, window: WebviewWindow) -> CmdResult<()> {
+    if state(&app).capture.current().is_some() { return Ok(()); }
     window.hide().map_err(err)
 }
 
@@ -228,7 +229,7 @@ pub async fn capture_read_text(app: AppHandle, session_id: u64, monitor_id: usiz
 }
 
 #[tauri::command]
-pub fn copy_color(app: AppHandle, hex: String) -> CmdResult<()> {
+pub async fn copy_color(app: AppHandle, hex: String) -> CmdResult<()> {
     clipboard::set_text(&hex).map_err(anyhow_err)?;
     card::show(&app, Card::Color { hex });
     Ok(())

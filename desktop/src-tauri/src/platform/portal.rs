@@ -96,7 +96,7 @@ pub fn screenshot(mode: &str) -> Result<Option<RgbaImage>> {
     Ok(Some(crate::shots::load_rgba(&path)?))
 }
 
-static SHORTCUT_CONNECTION: LazyLock<Mutex<Option<Connection>>> = LazyLock::new(|| Mutex::new(None));
+static SHORTCUT_CONNECTION: LazyLock<Mutex<Option<(u64, Connection)>>> = LazyLock::new(|| Mutex::new(None));
 static SHORTCUT_GENERATION: AtomicU64 = AtomicU64::new(0);
 static SUSPENDED: AtomicBool = AtomicBool::new(false);
 
@@ -107,7 +107,7 @@ pub fn set_recording(app: &AppHandle, on: bool) -> Vec<HotkeyStatus> {
 
 pub fn register_shortcuts(app: &AppHandle) -> Vec<HotkeyStatus> {
     let generation = SHORTCUT_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    if let Some(previous) = SHORTCUT_CONNECTION.lock().take() { let _ = previous.close(); }
+    if let Some((_, previous)) = SHORTCUT_CONNECTION.lock().take() { let _ = previous.close(); }
     let bindings: Vec<_> = state(app).settings().hotkeys.bindings().into_iter()
         .map(|(action, key)| (action.to_owned(), key.to_owned())).collect();
     let pending: Vec<_> = bindings.iter().map(|(action, key)| HotkeyStatus {
@@ -120,7 +120,11 @@ pub fn register_shortcuts(app: &AppHandle) -> Vec<HotkeyStatus> {
     std::thread::spawn(move || {
         let result = shortcut_session(&app, &bindings, generation);
         if SHORTCUT_GENERATION.load(Ordering::SeqCst) == generation {
-            if let Some(connection) = SHORTCUT_CONNECTION.lock().take() { let _ = connection.close(); }
+            let connection = {
+                let mut current = SHORTCUT_CONNECTION.lock();
+                if current.as_ref().is_some_and(|(owner, _)| *owner == generation) { current.take() } else { None }
+            };
+            if let Some((_, connection)) = connection { let _ = connection.close(); }
             if let Err(error) = result {
                 log::warn!("desktop shortcuts: {error:#}");
                 publish_shortcuts(&app, &bindings, &[], Some("Your desktop could not enable this shortcut. Use the screenshot button or configure algorithco-shot --capture in desktop Keyboard Settings."));
@@ -147,7 +151,7 @@ fn shortcut_session(app: &AppHandle, bindings: &[(String, String)], generation: 
     {
         let mut current = SHORTCUT_CONNECTION.lock();
         if SHORTCUT_GENERATION.load(Ordering::SeqCst) != generation { return Ok(()); }
-        *current = Some(connection.clone());
+        *current = Some((generation, connection.clone()));
     }
     let proxy = Proxy::new(&connection, DESKTOP, DESKTOP_PATH, SHORTCUTS)?;
     proxy.get_property::<u32>("version").context("The desktop does not provide global shortcuts")?;
@@ -220,6 +224,9 @@ fn preferred_trigger(shortcut: &str) -> Option<String> {
                 "PrintScreen" => "Print", "ScrollLock" => "Scroll_Lock", "Enter" => "Return",
                 "ArrowLeft" => "Left", "ArrowRight" => "Right", "ArrowUp" => "Up", "ArrowDown" => "Down",
                 "PageUp" => "Page_Up", "PageDown" => "Page_Down", "Backspace" => "BackSpace", "Space" => "space",
+                "CapsLock" => "Caps_Lock", "NumLock" => "Num_Lock",
+                "NumpadAdd" => "KP_Add", "NumpadSubtract" => "KP_Subtract", "NumpadMultiply" => "KP_Multiply",
+                "NumpadDivide" => "KP_Divide", "NumpadDecimal" => "KP_Decimal", "NumpadEnter" => "KP_Enter",
                 "BracketLeft" => "bracketleft", "BracketRight" => "bracketright", "Backslash" => "backslash",
                 "Semicolon" => "semicolon", "Quote" => "apostrophe", "Comma" => "comma", "Period" => "period",
                 "Slash" => "slash", "Backquote" => "grave", "Minus" => "minus", "Equal" => "equal",
@@ -228,6 +235,7 @@ fn preferred_trigger(shortcut: &str) -> Option<String> {
         };
         let key = if let Some(letter) = key.strip_prefix("Key") { letter.to_ascii_lowercase() }
             else if let Some(digit) = key.strip_prefix("Digit") { digit.to_owned() }
+            else if let Some(digit) = key.strip_prefix("Numpad").filter(|s| s.len() == 1 && s.bytes().all(|c| c.is_ascii_digit())) { format!("KP_{digit}") }
             else if key.len() == 1 { key.to_ascii_lowercase() } else { key };
         if key.is_empty() || !key.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') { return None; }
         result.push(key);
@@ -289,6 +297,7 @@ mod tests {
         assert_eq!(preferred_trigger("Ctrl+Shift+KeyA").as_deref(), Some("CTRL+SHIFT+a"));
         assert_eq!(preferred_trigger("Ctrl+Alt+Enter").as_deref(), Some("CTRL+ALT+Return"));
         assert_eq!(preferred_trigger("Super+PrintScreen").as_deref(), Some("LOGO+Print"));
+        assert_eq!(preferred_trigger("Ctrl+Numpad7").as_deref(), Some("CTRL+KP_7"));
         let first = vec![("capture".into(), "A".into()), ("qr".into(), "Q".into())];
         let second = vec![("capture".into(), "A".into()), ("text".into(), "T".into()), ("qr".into(), "Q".into())];
         assert_eq!(shortcut_id(&first, 1), shortcut_id(&second, 2));

@@ -1,5 +1,5 @@
 // The capture overlay page. One stays loaded per monitor, hidden; on
-// "overlay:start" it draws the frozen screen, then asks Rust to show it.
+// "overlay:start" it draws the frozen screen, then acknowledges native readiness.
 
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -152,6 +152,7 @@ export function Overlay() {
     window.addEventListener("resize", resize);
 
     const start = async (s: Start) => {
+      if (sessionRef.current && sessionRef.current.sessionId >= s.sessionId) return;
       sessionRef.current = s;
       setSession(s);
       setMenu(null);
@@ -191,7 +192,8 @@ export function Overlay() {
       }
     };
 
-    const end = () => {
+    const end = (sessionId: number) => {
+      if (sessionRef.current?.sessionId !== sessionId) return;
       engine.clear();
       sessionRef.current = null;
       setSession(null);
@@ -202,7 +204,7 @@ export function Overlay() {
       // never shows this one for a moment.
       let done = false;
       const hide = () => {
-        if (!done) {
+        if (!done && !sessionRef.current) {
           done = true;
           api.overlayHide();
         }
@@ -213,7 +215,7 @@ export function Overlay() {
 
     const subs = [
       listen<Start>("overlay:start", (e) => start(e.payload)),
-      listen<number>("overlay:end", () => end()),
+      listen<number>("overlay:end", (e) => end(e.payload)),
       listen<string>("overlay:mode", (e) => engine.setMode(e.payload as Mode)),
     ];
     let disposed = false;

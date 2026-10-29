@@ -10,7 +10,7 @@ const fixture = {
 const mock = vi.hoisted(() => ({
   effects: [] as Array<() => void | (() => void)>,
   listeners: new Map<string, (event: { payload: unknown }) => Promise<void>>(),
-  loaded: vi.fn(), ready: vi.fn(), failed: vi.fn(), cancel: vi.fn(), draw: vi.fn(),
+  loaded: vi.fn(), ready: vi.fn(), failed: vi.fn(), cancel: vi.fn(), hide: vi.fn(), draw: vi.fn(), clear: vi.fn(),
 }));
 
 vi.mock("react", async (original: <T>() => Promise<T>) => ({
@@ -27,14 +27,14 @@ vi.mock("@tauri-apps/api/event", () => ({
   }),
 }));
 vi.mock("../shared/api", () => ({
-  api: { overlayLoaded: mock.loaded, overlayReady: mock.ready, overlayFailed: mock.failed, captureCancel: mock.cancel },
+  api: { overlayLoaded: mock.loaded, overlayReady: mock.ready, overlayFailed: mock.failed, captureCancel: mock.cancel, overlayHide: mock.hide },
   errorText: (error: unknown) => String(error), shotUrl: (path: string) => `shot://localhost/${path}`,
 }));
 vi.mock("../shared/i18n", () => ({ useT: () => (key: string) => key }));
 vi.mock("../shared/settings", () => ({ initSettings: vi.fn() }));
 vi.mock("./engine", () => ({ Engine: class {
   load = mock.draw;
-  clear = vi.fn();
+  clear = mock.clear;
   setMode = vi.fn();
 } }));
 
@@ -61,6 +61,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup.forEach((dispose) => dispose());
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -82,5 +83,23 @@ describe("hidden capture window startup", () => {
     expect(mock.failed).toHaveBeenCalledWith(7, expect.stringContaining("frame 500"));
     expect(mock.ready).not.toHaveBeenCalled();
     expect(mock.cancel).not.toHaveBeenCalled();
+  });
+
+  it("ignores an old end event after a new capture has loaded", async () => {
+    await mock.listeners.get("overlay:start")!({ payload: { ...fixture, sessionId: 8 } });
+    await mock.listeners.get("overlay:end")!({ payload: 7 });
+    expect(mock.clear).not.toHaveBeenCalled();
+    expect(mock.hide).not.toHaveBeenCalled();
+  });
+
+  it("does not let the previous capture's delayed hide close a new capture", async () => {
+    vi.useFakeTimers();
+    await mock.listeners.get("overlay:start")!({ payload: fixture });
+    await mock.listeners.get("overlay:end")!({ payload: 7 });
+    await mock.listeners.get("overlay:start")!({ payload: { ...fixture, sessionId: 8 } });
+    await vi.advanceTimersByTimeAsync(150);
+    expect(mock.clear).toHaveBeenCalledOnce();
+    expect(mock.hide).not.toHaveBeenCalled();
+    expect(mock.ready).toHaveBeenLastCalledWith(8, 0);
   });
 });

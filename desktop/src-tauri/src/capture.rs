@@ -307,7 +307,7 @@ fn present(app: &AppHandle, mode: &str, frames: Vec<Frame>, windows: Vec<WindowI
     Ok(())
 }
 
-/// The overlay drew the frozen screen; show it now.
+/// The visible overlay drew the frozen screen; acknowledge it and assign focus.
 pub fn overlay_ready(app: &AppHandle, window: &tauri::WebviewWindow, session_id: u64, monitor_id: usize) -> Result<()> {
     if window.label() != format!("overlay-{monitor_id}") { bail!("invalid capture window"); }
     let st = state(app);
