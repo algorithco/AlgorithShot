@@ -74,26 +74,37 @@ fn request_with_timeout<B: Serialize + DynamicType>(connection: &Connection, pro
     }
 }
 
-pub fn screenshot(mode: &str) -> Result<Option<RgbaImage>> {
+pub struct Screenshot { pub image: RgbaImage, pub selected: bool }
+
+/// Only v3's advertised target guarantees a native region/window picker.
+/// Earlier versions expose an interactive hint; selection stays in our UI.
+fn capture_options<'a>(mode: &str, version: u32, available: u32, handle: &'a str) -> (HashMap<&'static str, Value<'a>>, bool) {
+    let requested = match mode { "window" => 2u32, "region" | "text" | "qr" => 4, _ => 1 };
+    let target = if version >= 3 && available & requested != 0 { Some(requested) }
+        else if version >= 3 && available & 1 != 0 { Some(1) } else { None };
+    let selected = target.is_some_and(|t| t == 2 || t == 4);
+    let mut options = HashMap::from([
+        ("handle_token", Value::from(handle)),
+        ("interactive", Value::from(selected)),
+        ("modal", Value::from(false)),
+    ]);
+    if let Some(target) = target { options.insert("target", Value::from(target)); }
+    (options, selected)
+}
+
+pub fn screenshot(mode: &str) -> Result<Option<Screenshot>> {
     let connection = connection()?;
     let proxy = Proxy::new(&connection, DESKTOP, DESKTOP_PATH, "org.freedesktop.portal.Screenshot")
         .context("Screen capture is unavailable. Install the screenshot portal for your desktop.")?;
     let handle = token();
-    let mut options = HashMap::from([
-        ("handle_token", Value::from(handle.as_str())),
-        ("interactive", Value::from(true)),
-        ("modal", Value::from(false)),
-    ]);
-    if proxy.get_property::<u32>("version").unwrap_or(1) >= 3 {
-        let target = match mode { "window" => 2u32, "screen" => 1, _ => 4 };
-        let available = proxy.get_property::<u32>("AvailableTargets").unwrap_or(0);
-        if available & target != 0 { options.insert("target", Value::from(target)); }
-    }
+    let version = proxy.get_property::<u32>("version").unwrap_or(1);
+    let available = if version >= 3 { proxy.get_property::<u32>("AvailableTargets").unwrap_or(0) } else { 0 };
+    let (options, selected) = capture_options(mode, version, available, &handle);
     let Some(mut result) = request(&connection, &proxy, "Screenshot", &("", options))? else { return Ok(None); };
     let uri = String::try_from(result.remove("uri").context("The desktop returned no captured image")?)?;
     let path = tauri::Url::parse(&uri)?.to_file_path().map_err(|_| anyhow!("The desktop returned an invalid image location"))?;
     // The portal owns this file. Never remove a path returned by another process.
-    Ok(Some(crate::shots::load_rgba(&path)?))
+    Ok(Some(Screenshot { image: crate::shots::load_rgba(&path)?, selected }))
 }
 
 static SHORTCUT_CONNECTION: LazyLock<Mutex<Option<(u64, Connection)>>> = LazyLock::new(|| Mutex::new(None));
@@ -247,6 +258,24 @@ fn preferred_trigger(shortcut: &str) -> Option<String> {
 mod tests {
     use super::*;
     use std::{io::{BufRead, BufReader}, process::{Child, Command, Stdio}};
+
+    #[test]
+    fn selection_does_not_rely_on_an_interactive_hint_from_older_portals() {
+        let (legacy, selected) = capture_options("region", 2, 0, "test");
+        assert!(!selected);
+        assert!(!bool::try_from(legacy.get("interactive").unwrap()).unwrap());
+        assert!(!legacy.contains_key("target"));
+        let (native, selected) = capture_options("region", 3, 7, "test");
+        assert!(selected);
+        assert_eq!(u32::try_from(native.get("target").unwrap()).unwrap(), 4);
+        let (restricted, selected) = capture_options("window", 3, 1, "test");
+        assert!(!selected);
+        assert!(!bool::try_from(restricted.get("interactive").unwrap()).unwrap());
+        assert_eq!(u32::try_from(restricted.get("target").unwrap()).unwrap(), 1);
+        let (tool, selected) = capture_options("color", 3, 7, "test");
+        assert!(!selected);
+        assert_eq!(u32::try_from(tool.get("target").unwrap()).unwrap(), 1);
+    }
 
     struct Bus(Child, String);
     impl Bus {

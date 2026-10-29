@@ -234,16 +234,21 @@ fn begin_portal(app: &AppHandle, mode: &str) -> Result<()> {
     let result = crate::platform::portal::screenshot(mode);
     // A denied or cancelled desktop dialog must leave the library accessible.
     if let Some(window) = &main { let _ = window.show(); }
-    let Some(image) = result? else { return Ok(()); };
+    let Some(screenshot) = result? else { return Ok(()); };
+    let image = screenshot.image;
     let bounds = Rect::new(0, 0, image.width() as i32, image.height() as i32);
     match mode {
-        "color" | "ruler" | "fixed" => {
+        "screen" => finish(app, image, Source::default(), bounds, "done"),
+        "text" | "qr" if screenshot.selected => finish(app, image, Source::default(), bounds, mode),
+        "region" | "window" if screenshot.selected => finish(app, image, Source::default(), bounds, "done"),
+        _ => {
             let monitor = win::portal_monitor(image.width(), image.height());
+            // Older portals may return a full desktop. Always provide a region
+            // picker rather than silently saving the entire desktop image.
+            let mode = if mode == "window" { "region" } else { mode };
             present(app, mode, vec![Frame { monitor, rgba: Arc::new(image.into_raw()) }], vec![])?;
             Ok(())
         }
-        "text" | "qr" => finish(app, image, Source::default(), bounds, mode),
-        _ => finish(app, image, Source::default(), bounds, "done"),
     }
 }
 

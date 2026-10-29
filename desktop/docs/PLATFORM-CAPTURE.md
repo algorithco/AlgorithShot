@@ -7,7 +7,7 @@ failed capture. The capture backend follows the actual desktop session:
 | --- | --- | --- |
 | Windows | Native pixel capture and one selection window per display | Interactive desktop |
 | Linux X11 | Native X11 capture and one selection window per display | X11 display, WebKitGTK 4.1 |
-| Linux Wayland | Desktop Screenshot portal's region/window/screen picker | Session D-Bus, `xdg-desktop-portal` and a backend implementing Screenshot |
+| Linux Wayland | Desktop Screenshot portal; native picker when supported, image selection window otherwise | Session D-Bus, `xdg-desktop-portal` and a backend implementing Screenshot |
 | macOS 14+ | ScreenCaptureKit screenshot manager and native selection windows | Screen Recording permission |
 | macOS 12–13 | Core Graphics capture and native selection windows | Screen Recording permission |
 
@@ -15,9 +15,12 @@ Wayland compositors intentionally restrict reading the desktop, moving applicati
 windows to global coordinates and registering global keyboard shortcuts. The app
 does not depend on XWayland for capture. Color, ruler and fixed-size tools review
 the portal image in a normal window. OCR, QR, copying, editing and saving operate
-on the returned pixels. An older portal may let the user choose its own capture
-target instead of accepting the requested mode; target hints are sent only when
-the installed portal advertises support.
+on the returned pixels. Version 3 portals advertise their supported capture
+targets. Older portals only offer an interactive hint, so region/text/QR selection
+uses the app's normal image window instead of assuming a system picker appeared.
+Window mode uses the advertised system picker; otherwise the image can be
+cropped manually. Fullscreen requests avoid the optional interactive
+chooser. Target options are sent only when the installed portal advertises them.
 
 Global shortcuts use the GlobalShortcuts portal on Wayland. The desktop may ask
 the user to choose or approve a trigger, and the UI displays the assigned trigger.
