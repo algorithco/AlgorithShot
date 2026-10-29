@@ -335,7 +335,7 @@ pub fn cancel(app: &AppHandle, session_id: u64) {
 
 pub fn failed(app: &AppHandle, session_id: u64, message: &str) {
     if state(app).capture.take(session_id).is_some() {
-        log::error!("capture {session_id}: {message}");
+        log::error!("The capture view could not prepare its image");
         end_overlays(app, session_id);
         wm::hide_overlays(app);
         card::show(app, Card::error(message.chars().take(1000).collect()));

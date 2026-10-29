@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 bool algorithshot_cursor_position(double *x, double *y) {
     CGEventRef event = CGEventCreate(NULL);
@@ -54,8 +55,10 @@ bool algorithshot_capture_display(uint32_t displayID, unsigned char **pixels,
 
             SCContentFilter *filter = [[SCContentFilter alloc] initWithDisplay:display excludingWindows:@[]];
             SCStreamConfiguration *configuration = [[SCStreamConfiguration alloc] init];
-            configuration.width = CGDisplayPixelsWide(displayID);
-            configuration.height = CGDisplayPixelsHigh(displayID);
+            // The filter reports points and its actual backing scale, including
+            // rotated displays and scaled Retina modes such as More Space.
+            configuration.width = (size_t)llround(filter.contentRect.size.width * filter.pointPixelScale);
+            configuration.height = (size_t)llround(filter.contentRect.size.height * filter.pointPixelScale);
             configuration.showsCursor = NO;
             dispatch_semaphore_t captured = dispatch_semaphore_create(0);
             // Strong ARC storage also releases a late result after a timeout.
