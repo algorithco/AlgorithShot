@@ -61,6 +61,11 @@ Outputs are under `desktop/.local/release/<version>/<platform>/`. The builder
 also runs native verification from the packaged AppImage and macOS `.app`, and
 checks both architectures in a universal Mac executable.
 
+To rebuild an existing source tag after a runner or workflow infrastructure fix,
+dispatch the workflow from the corrected workflow ref and set `source_ref` to
+the existing tag. The checkout and build provenance still identify that exact
+tagged source; a workflow infrastructure fix does not require moving its tag.
+
 ## Signing and publishing
 
 1. Set the same new version in `desktop/package.json`, `desktop/src-tauri/Cargo.toml`
