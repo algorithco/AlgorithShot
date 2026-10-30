@@ -171,11 +171,6 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
   !define MUI_UNICON "${UNINSTALLERICON}"
 !endif
 
-; Define registry key to store installer language
-!define MUI_LANGDLL_REGISTRY_ROOT "HKCU"
-!define MUI_LANGDLL_REGISTRY_KEY "${MANUPRODUCTKEY}"
-!define MUI_LANGDLL_REGISTRY_VALUENAME "Installer Language"
-
 ; Installer pages, must be ordered as they appear
 ; 1. Welcome Page
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
@@ -185,6 +180,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 ; 2. License Page (if defined)
 !if "${LICENSE}" != ""
   !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW ShotLicenseShow
   !insertmacro MUI_PAGE_LICENSE "${LICENSE}"
 !endif
 
@@ -255,8 +251,7 @@ Function PageReinstall
   nsis_tauri_utils::SemverCompare "${VERSION}" $R0
   Pop $R0
 
-  ; All shipped translations use the corrected key. No legacy language files
-  ; are loaded by this installer.
+  ; Our English messages use the corrected upstream key.
   StrCpy $R5 "$(chooseHowToInstall)"
 
   ; Reinstalling the same version
@@ -520,7 +515,6 @@ FunctionEnd
 LangString ^Font 0 "Segoe UI"
 LangString ^FontSize 0 "10"
 {{/each}}
-!insertmacro MUI_RESERVEFILE_LANGDLL
 {{#each language_files}}
   !include "{{this}}"
 {{/each}}
@@ -529,14 +523,8 @@ LangString ^FontSize 0 "10"
 !insertmacro SHOT_THEME_FUNCTIONS
 
 Function .onInit
-  ; Restore a language chosen on our welcome page. On first install NSIS
-  ; still chooses the Windows language, with English as the fallback.
-  ReadRegStr $0 HKCU "${MANUPRODUCTKEY}" "Installer Language"
-  ${If} $0 == ${LANG_ENGLISH}
-  ${OrIf} $0 == ${LANG_UZBEK}
-  ${OrIf} $0 == ${LANG_RUSSIAN}
-    StrCpy $LANGUAGE $0
-  ${EndIf}
+  ; Setup always uses English, including upgrades from a localized installer.
+  StrCpy $LANGUAGE ${LANG_ENGLISH}
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 1
@@ -551,10 +539,6 @@ Function .onInit
   ${IfNot} ${Errors}
     StrCpy $UpdateMode 1
   ${EndIf}
-
-  !if "${DISPLAYLANGUAGESELECTOR}" == "true"
-    !insertmacro MUI_LANGDLL_DISPLAY
-  !endif
 
   !insertmacro SetContext
 
@@ -834,7 +818,7 @@ Function un.onInit
     !insertmacro MULTIUSER_UNINIT
   !endif
 
-  !insertmacro MUI_UNGETLANGUAGE
+  StrCpy $LANGUAGE ${LANG_ENGLISH}
 
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}

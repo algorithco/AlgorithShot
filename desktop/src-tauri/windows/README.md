@@ -1,18 +1,21 @@
 # AlgorithShot Windows installer
 
-The installer uses the app's paper (`#f7f7f5`), ink (`#111111`), yellow
-(`#ffd300`), Segoe UI and viewfinder mark. Every page shares the same canvas,
-vector sidebar and navigation. The primary action is at the bottom right.
+The installer uses a compact white canvas, dark text (`#171a21`), yellow
+(`#ffd300`), Segoe UI and the viewfinder mark. A horizontal brand header and
+consistent footer leave room for readable content. The primary action is at
+the bottom right. Welcome uses small capture, edit and search icons; finish
+groups the optional launch and desktop shortcut checkboxes.
 
 - `installer.nsi` keeps Tauri's installation, WebView2, upgrade, passive/silent,
   shortcut and uninstall logic. Presentation callbacks are in `theme.nsh`.
 - `native/ShotUI.cpp` lays out the existing native controls and paints the
-  sidebar and buttons. Directory validation, keyboard navigation, screen reader
+  header, icons, folder field and buttons. Directory validation, keyboard navigation, screen reader
   text, checkboxes and button activation remain native. The drawing code uses
   Windows' DPI and retains the system button renderer in High Contrast mode.
-- `languages/` contains all English, Uzbek and Russian product messages,
-  including maintenance and WebView2 errors. Welcome has an inline language
-  selector; the selection persists for future setup/uninstall runs.
+- Setup, maintenance and uninstall always use English, including WebView2
+  errors and upgrades from an older localized installer. Only English resources
+  are bundled. There is no language selector or persisted language preference.
+  Product messages are in `languages/English.nsh`.
 - The default install remains per user. Launch is checked on the finish page;
   the desktop shortcut is optional and starts unchecked. Successful installation
   continues to the finish page; errors keep the details available.
@@ -39,20 +42,31 @@ for deliverable builds.
 After bundling on Windows:
 
 ```powershell
-powershell -NoProfile -File dev/preview-installer.ps1 -Language All
+powershell -NoProfile -File dev/preview-installer.ps1
 ```
 
 If needed, pass `-NsisDirectory` with the cached Tauri NSIS directory.
 This compiles a disposable copy of Tauri's generated script. Installation
 sections, application launch, shortcuts, initialization and registry writes
 are replaced before it executes. The fixture walks the real native pages and
-saves BMPs plus control text/geometry for welcome, directory, progress, finish,
-uninstall confirmation and uninstall progress in `dev/installer-qa.local/`. It does not
+saves BMPs plus control text/geometry/font information for welcome, license,
+maintenance, directory, progress, finish, uninstall confirmation and uninstall progress in
+`dev/installer-qa.local/captures/96dpi/`. It fails if a visible label's text is
+clipped. It does not
 install or remove AlgorithShot. Its test-only C++ entry point is excluded from
 the production DLL. Only a fixture uninstaller is written inside that ignored
-preview directory. Both our language persistence and MUI's registry
-persistence are disabled. Compiler warnings about unused install code are expected
+preview directory. Registry persistence is disabled. Compiler warnings about unused install code are expected
 only in this stripped fixture.
+
+Use `-Dpi 120`, `-Dpi 144` or `-Dpi 192` to verify 125%, 150% and 200% layouts
+without changing Windows display settings. Captures go into separate DPI
+directories. The DPI override exists only in the preview DLL.
+
+Use `-Interactive` to build a preview for manual keyboard and focus checks.
+Open the printed `installer-preview.exe` path; it uses the same harmless
+sections and never launches the application or creates shortcuts. The preview
+always includes maintenance with fixture data, without inspecting an existing
+installation.
 
 To treat every warning in the production script as an error, run
 `makensis /WX /V3 installer.nsi` in `src-tauri/target/release/nsis/x64` after
