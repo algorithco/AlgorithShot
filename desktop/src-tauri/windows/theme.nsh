@@ -3,9 +3,9 @@
 !ifndef ALGORITHSHOT_THEME
 !define ALGORITHSHOT_THEME
 !addplugindir /x86-unicode "${__FILEDIR__}\..\target\installer-ui\x86"
-!define MUI_BGCOLOR "F7F7F5"
-!define MUI_TEXTCOLOR "111111"
-!define MUI_INSTFILESPAGE_COLORS "111111 FFFFFF"
+!define MUI_BGCOLOR "FFFFFF"
+!define MUI_TEXTCOLOR "171A21"
+!define MUI_INSTFILESPAGE_COLORS "171A21 FFFFFF"
 !define MUI_CUSTOMFUNCTION_GUIINIT ShotGuiInit
 !define MUI_CUSTOMFUNCTION_UNGUIINIT un.ShotGuiInit
 !define MUI_WELCOMEPAGE_TITLE "$(shotWelcomeTitle)"
@@ -16,9 +16,6 @@
 !define MUI_UNCONFIRMPAGE_TEXT_TOP "$(shotUninstallBody)"
 
 Var ShotInner
-Var ShotControl
-Var ShotLanguage
-Var ShotLanguageLabel
 Var ShotEyebrow
 Var ShotFeature1
 Var ShotFeature2
@@ -31,24 +28,19 @@ Var ShotFeature3Body
   ShotUI::MoveControl /NOUNLOAD "${HANDLE}" "${X}" "${Y}" "${WIDTH}" "${HEIGHT}" "${FONT}"
 !macroend
 
-!macro SHOT_FEATURE NUMBER Y BODY_Y TITLE BODY TITLEHANDLE BODYHANDLE
-  ${NSD_CreateLabel} 0 0 1 1 "${NUMBER}"
-  Pop $ShotControl
-  !insertmacro SHOT_MOVE $ShotControl 280 ${Y} 28 28 mono
-  ${NSD_AddStyle} $ShotControl ${SS_CENTER}|${SS_CENTERIMAGE}
-  SetCtlColors $ShotControl 111111 FFD300
+!macro SHOT_FEATURE Y BODY_Y TITLE BODY TITLEHANDLE BODYHANDLE
   ${NSD_CreateLabel} 0 0 1 1 "${TITLE}"
   Pop ${TITLEHANDLE}
-  !insertmacro SHOT_MOVE ${TITLEHANDLE} 325 ${Y} 435 24 label
+  !insertmacro SHOT_MOVE ${TITLEHANDLE} 96 ${Y} 604 24 label
   ${NSD_CreateLabel} 0 0 1 1 "${BODY}"
   Pop ${BODYHANDLE}
-  !insertmacro SHOT_MOVE ${BODYHANDLE} 325 ${BODY_Y} 435 24 small
+  !insertmacro SHOT_MOVE ${BODYHANDLE} 96 ${BODY_Y} 604 24 body
 !macroend
 
 !macro SHOT_COMMON_FUNCTIONS PREFIX
 Function ${PREFIX}ShotGuiInit
   ShotUI::Shell /NOUNLOAD
-  SetCtlColors $HWNDPARENT 111111 F7F7F5
+  SetCtlColors $HWNDPARENT 171A21 FFFFFF
 FunctionEnd
 
 Function ${PREFIX}ShotThemePage
@@ -62,19 +54,21 @@ Function ${PREFIX}ShotThemePage
   !endif
   SendMessage $mui.Button.Back ${WM_SETTEXT} 0 "STR:$(shotBack)"
   SendMessage $mui.Button.Cancel ${WM_SETTEXT} 0 "STR:$(shotCancel)"
-  SetCtlColors $HWNDPARENT 111111 F7F7F5
-  SetCtlColors $ShotInner 111111 F7F7F5
+  SetCtlColors $HWNDPARENT 171A21 FFFFFF
+  SetCtlColors $ShotInner 171A21 FFFFFF
   System::Call 'user32::GetWindow(p $ShotInner, i 5) p .r0'
   ${While} $0 P<> 0
-    SetCtlColors $0 111111 F7F7F5
+    SetCtlColors $0 171A21 FFFFFF
     System::Call 'user32::GetClassNameW(p r0, w .r1, i ${NSIS_MAX_STRLEN})'
     System::Call 'user32::GetDlgCtrlID(p r0) i .r2'
     ${If} $1 == "Edit"
-      SetCtlColors $0 111111 FFFFFF
+      SetCtlColors $0 171A21 FFFFFF
     ${ElseIf} $2 == 1901
     ${OrIf} $2 == 1903
     ${OrIf} $2 == 1905
-      SetCtlColors $0 62625D F7F7F5
+    ${OrIf} $2 == 1023
+    ${OrIf} $2 == 1024
+      SetCtlColors $0 626872 FFFFFF
     ${EndIf}
     System::Call 'user32::GetWindow(p r0, i 2) p .r0'
   ${EndWhile}
@@ -103,74 +97,25 @@ Function ShotWelcomeShow
   StrCpy $ShotInner $mui.WelcomePage
   ShowWindow $mui.WelcomePage.Image ${SW_HIDE}
   ShotUI::Page /NOUNLOAD "$ShotInner" "welcome" "" "" "" "" "" "" "WINDOWS  /  ${VERSION}"
-  !insertmacro SHOT_MOVE $mui.WelcomePage.Title 280 66 480 70 title
-  !insertmacro SHOT_MOVE $mui.WelcomePage.Text 280 145 480 62 body
+  !insertmacro SHOT_MOVE $mui.WelcomePage.Title 40 128 660 42 title
+  !insertmacro SHOT_MOVE $mui.WelcomePage.Text 40 180 660 44 body
   ${NSD_CreateLabel} 0 0 1 1 "$(shotWelcomeEyebrow)"
   Pop $ShotEyebrow
-  !insertmacro SHOT_MOVE $ShotEyebrow 280 30 240 20 small
-  ${NSD_CreateLabel} 0 0 1 1 "$(shotLanguage)"
-  Pop $ShotLanguageLabel
-  !insertmacro SHOT_MOVE $ShotLanguageLabel 568 30 50 20 small
-  ${NSD_CreateDropList} 0 0 1 1 ""
-  Pop $ShotLanguage
-  !insertmacro SHOT_MOVE $ShotLanguage 620 24 140 150 body
-  ${NSD_CB_AddString} $ShotLanguage "English"
-  ${NSD_CB_AddString} $ShotLanguage "Oʻzbekcha"
-  ${NSD_CB_AddString} $ShotLanguage "Русский"
-  ${If} $LANGUAGE == ${LANG_UZBEK}
-    SendMessage $ShotLanguage ${CB_SETCURSEL} 1 0
-  ${ElseIf} $LANGUAGE == ${LANG_RUSSIAN}
-    SendMessage $ShotLanguage ${CB_SETCURSEL} 2 0
-  ${Else}
-    SendMessage $ShotLanguage ${CB_SETCURSEL} 0 0
-  ${EndIf}
-  ${NSD_OnChange} $ShotLanguage ShotLanguageChanged
+  !insertmacro SHOT_MOVE $ShotEyebrow 40 104 660 20 small
   Call ShotThemePage
-  !insertmacro SHOT_FEATURE "01" 228 255 "$(shotCapture)" "$(shotCaptureBody)" $ShotFeature1 $ShotFeature1Body
-  !insertmacro SHOT_FEATURE "02" 291 318 "$(shotEdit)" "$(shotEditBody)" $ShotFeature2 $ShotFeature2Body
-  !insertmacro SHOT_FEATURE "03" 354 381 "$(shotFind)" "$(shotFindBody)" $ShotFeature3 $ShotFeature3Body
-  Call ShotRefreshWelcome
-FunctionEnd
-
-Function ShotLanguageChanged
-  Pop $ShotControl
-  Push $0
-  SendMessage $ShotLanguage ${CB_GETCURSEL} 0 0 $0
-  ${If} $0 == 1
-    StrCpy $LANGUAGE ${LANG_UZBEK}
-  ${ElseIf} $0 == 2
-    StrCpy $LANGUAGE ${LANG_RUSSIAN}
-  ${Else}
-    StrCpy $LANGUAGE ${LANG_ENGLISH}
-  ${EndIf}
-  Call ShotRefreshWelcome
-  Pop $0
-FunctionEnd
-
-Function ShotRefreshWelcome
-  SendMessage $HWNDPARENT ${WM_SETTEXT} 0 "STR:$(shotWindowTitle)"
-  ${NSD_SetText} $ShotEyebrow "$(shotWelcomeEyebrow)"
-  ${NSD_SetText} $ShotLanguageLabel "$(shotLanguage)"
-  ${NSD_SetText} $mui.WelcomePage.Title "$(shotWelcomeTitle)"
-  ${NSD_SetText} $mui.WelcomePage.Text "$(shotWelcomeBody)"
-  ${NSD_SetText} $ShotFeature1 "$(shotCapture)"
-  ${NSD_SetText} $ShotFeature2 "$(shotEdit)"
-  ${NSD_SetText} $ShotFeature3 "$(shotFind)"
-  ${NSD_SetText} $ShotFeature1Body "$(shotCaptureBody)"
-  ${NSD_SetText} $ShotFeature2Body "$(shotEditBody)"
-  ${NSD_SetText} $ShotFeature3Body "$(shotFindBody)"
+  !insertmacro SHOT_FEATURE 240 264 "$(shotCapture)" "$(shotCaptureBody)" $ShotFeature1 $ShotFeature1Body
+  !insertmacro SHOT_FEATURE 302 326 "$(shotEdit)" "$(shotEditBody)" $ShotFeature2 $ShotFeature2Body
+  !insertmacro SHOT_FEATURE 364 388 "$(shotFind)" "$(shotFindBody)" $ShotFeature3 $ShotFeature3Body
   ${NSD_SetText} $mui.Button.Next "$(shotNext)"
   ${NSD_SetText} $mui.Button.Cancel "$(shotCancel)"
-  SetCtlColors $mui.WelcomePage.Text 62625D F7F7F5
-  SetCtlColors $ShotEyebrow 62625D F7F7F5
-  SetCtlColors $ShotLanguageLabel 62625D F7F7F5
-  SetCtlColors $ShotFeature1 111111 F7F7F5
-  SetCtlColors $ShotFeature2 111111 F7F7F5
-  SetCtlColors $ShotFeature3 111111 F7F7F5
-  SetCtlColors $ShotFeature1Body 62625D F7F7F5
-  SetCtlColors $ShotFeature2Body 62625D F7F7F5
-  SetCtlColors $ShotFeature3Body 62625D F7F7F5
-  WriteRegStr HKCU "${MANUPRODUCTKEY}" "Installer Language" $LANGUAGE
+  SetCtlColors $mui.WelcomePage.Text 626872 FFFFFF
+  SetCtlColors $ShotEyebrow 626872 FFFFFF
+  SetCtlColors $ShotFeature1 171A21 FFFFFF
+  SetCtlColors $ShotFeature2 171A21 FFFFFF
+  SetCtlColors $ShotFeature3 171A21 FFFFFF
+  SetCtlColors $ShotFeature1Body 626872 FFFFFF
+  SetCtlColors $ShotFeature2Body 626872 FFFFFF
+  SetCtlColors $ShotFeature3Body 626872 FFFFFF
 FunctionEnd
 
 Function ShotDirectoryShow
@@ -180,44 +125,52 @@ Function ShotDirectoryShow
   SendMessage $mui.Button.Next ${WM_SETTEXT} 0 "STR:$(shotInstall)"
 FunctionEnd
 
+!if "${LICENSE}" != ""
+Function ShotLicenseShow
+  StrCpy $ShotInner $mui.LicensePage
+  ShotUI::Page /NOUNLOAD "$ShotInner" "license" "$(shotLicenseTitle)" "$(shotLicenseBody)" "$(shotLicenseEyebrow)" "" "" "$(shotLicenseNote)" "WINDOWS  /  ${VERSION}"
+  Call ShotThemePage
+  SendMessage $mui.Button.Next ${WM_SETTEXT} 0 "STR:$(shotAgree)"
+FunctionEnd
+!endif
+
 Function ShotFinishShow
   StrCpy $ShotInner $mui.FinishPage
   ShowWindow $mui.FinishPage.Image ${SW_HIDE}
   ShotUI::Page /NOUNLOAD "$ShotInner" "finish" "" "" "" "" "" "" "WINDOWS  /  ${VERSION}"
-  !insertmacro SHOT_MOVE $mui.FinishPage.Title 280 66 480 70 title
-  !insertmacro SHOT_MOVE $mui.FinishPage.Text 280 145 480 74 body
-  !insertmacro SHOT_MOVE $mui.FinishPage.Run 280 302 480 24 body
-  !insertmacro SHOT_MOVE $mui.FinishPage.ShowReadme 280 342 480 24 body
+  !insertmacro SHOT_MOVE $mui.FinishPage.Title 40 128 660 42 title
+  !insertmacro SHOT_MOVE $mui.FinishPage.Text 40 180 660 44 body
+  !insertmacro SHOT_MOVE $mui.FinishPage.Run 60 264 620 24 body
+  !insertmacro SHOT_MOVE $mui.FinishPage.ShowReadme 60 308 620 24 body
   ${NSD_CreateLabel} 0 0 1 1 "$(shotFinishEyebrow)"
   Pop $ShotEyebrow
-  !insertmacro SHOT_MOVE $ShotEyebrow 280 30 480 20 small
+  !insertmacro SHOT_MOVE $ShotEyebrow 40 104 660 20 small
   Call ShotThemePage
-  SetCtlColors $ShotEyebrow 62625D F7F7F5
-  SetCtlColors $mui.FinishPage.Text 62625D F7F7F5
-  ${NSD_CreateLabel} 0 0 1 1 "Ctrl + Alt + A"
-  Pop $ShotControl
-  !insertmacro SHOT_MOVE $ShotControl 280 242 144 32 mono
-  ${NSD_AddStyle} $ShotControl ${SS_CENTER}|${SS_CENTERIMAGE}
-  SetCtlColors $ShotControl 111111 FFD300
+  SetCtlColors $ShotEyebrow 626872 FFFFFF
+  SetCtlColors $mui.FinishPage.Text 626872 FFFFFF
+  SetCtlColors $mui.FinishPage.Run 171A21 F8F9FB
+  SetCtlColors $mui.FinishPage.ShowReadme 171A21 F8F9FB
+  ShowWindow $mui.Button.Back ${SW_HIDE}
+  ShowWindow $mui.Button.Cancel ${SW_HIDE}
   SendMessage $mui.Button.Next ${WM_SETTEXT} 0 "STR:$(shotFinish)"
 FunctionEnd
 
 Function ShotMaintenanceShow
-  FindWindow $ShotInner "#32770" "" $HWNDPARENT
+  ; PageReinstall receives this exact dialog handle from nsDialogs::Create.
+  ; A class-name search can select the previous wizard page during transition.
+  StrCpy $ShotInner $R4
   Push $0
-  Push $1
   ${NSD_GetText} $mui.Header.Text $0
-  ${NSD_GetText} $mui.Header.SubText $1
-  ShotUI::Page /NOUNLOAD "$ShotInner" "maintenance" "$0" "" "$1" "" "" "" "WINDOWS  /  ${VERSION}"
+  ShotUI::Page /NOUNLOAD "$ShotInner" "maintenance" "$0" "" "$(shotMaintenanceEyebrow)" "" "" "" "WINDOWS  /  ${VERSION}"
   Call ShotThemePage
-  Pop $1
+  SendMessage $mui.Button.Next ${WM_SETTEXT} 0 "STR:$(shotNext)"
   Pop $0
 FunctionEnd
 
 Function un.ShotConfirmShow
   FindWindow $ShotInner "#32770" "" $HWNDPARENT
   ShotUI::Page /NOUNLOAD "$ShotInner" "confirm" "$(shotUninstallTitle)" "$(shotUninstallBody)" "$(shotUninstallSubtitle)" "" "" "" "WINDOWS  /  ${VERSION}"
-  !insertmacro SHOT_MOVE $DeleteAppDataCheckbox 280 300 480 42 body
+  !insertmacro SHOT_MOVE $DeleteAppDataCheckbox 40 312 660 42 body
   Call un.ShotThemePage
 FunctionEnd
 !macroend

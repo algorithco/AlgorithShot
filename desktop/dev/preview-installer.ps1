@@ -2,8 +2,9 @@
 # shortcuts or changing persisted preferences. Requires one tauri bundle first.
 param(
     [string]$NsisDirectory = '',
-    [ValidateSet('English', 'Uzbek', 'Russian', 'All')]
-    [string]$Language = 'All'
+    [ValidateSet(96, 120, 144, 192)]
+    [int]$Dpi = 96,
+    [switch]$Interactive
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,12 +21,27 @@ if (-not $NsisDirectory) {
 $compiler = Join-Path $NsisDirectory 'makensis.exe'
 if (-not (Test-Path -LiteralPath $compiler)) { throw "NSIS compiler missing: $compiler" }
 New-Item -ItemType Directory -Path $previewRoot -Force | Out-Null
+$captureRoot = Join-Path $previewRoot "captures/$($Dpi)dpi"
+New-Item -ItemType Directory -Path $captureRoot -Force | Out-Null
 
 # Work from the actual Tauri-generated script, including all the production
 # page definitions. Replace side effects before the fixture can be executed.
 $previewSource = Get-Content -LiteralPath $generatedScript -Raw
-# MUI also saves its language when leaving the progress page. Disable that
-# built-in persistence in the fixture, in addition to our own welcome callback.
+# A cached bundle can predate the current source version. The UI preview should
+# display the same version as the next bundle, without compiling the whole app.
+$previewVersion = (Get-Content -LiteralPath (Join-Path $previewRepo 'src-tauri/tauri.conf.json') -Raw | ConvertFrom-Json).version
+$previewSource = $previewSource -replace '(?m)^!define VERSION "[^"]*"', "!define VERSION `"$previewVersion`""
+# Tauri copies translations beside the generated script. Always preview the
+# current translations rather than those left by an earlier bundle.
+$bundledLanguages = [regex]::Matches($previewSource, '(?m)^!insertmacro MUI_LANGUAGE "([^"]+)"')
+if ($bundledLanguages.Count -ne 1 -or $bundledLanguages[0].Groups[1].Value -ne 'English') {
+    throw 'The cached installer is not English-only. Run pnpm tauri bundle --bundles nsis first.'
+}
+$previewTranslation = Join-Path $previewRepo 'src-tauri/windows/languages/English.nsh'
+$previewSource = [regex]::Replace($previewSource,
+    '(?m)^\s*!include "[^"\r\n]*[\\/]English\.nsh"',
+    [System.Text.RegularExpressions.MatchEvaluator]{ param($match) "!include `"$previewTranslation`"" })
+# Keep the fixture free of persisted preferences even with an older bundle.
 $previewSource = $previewSource -replace '(?m)^!define MUI_LANGDLL_REGISTRY_(ROOT|KEY|VALUENAME)[^\r\n]*', '; Preview has no MUI language registry persistence.'
 $previewTheme = Get-Content -LiteralPath (Join-Path $previewRepo 'src-tauri/windows/theme.nsh') -Raw
 $previewTheme = $previewTheme -replace '(?m)^\s*WriteRegStr[^\r\n]*', '; Preview does not persist preferences.'
@@ -38,7 +54,7 @@ $themePath = Join-Path $previewRoot 'theme-preview.nsh'
 $previewSource = $previewSource -replace '(?m)^!include "[^"\r\n]*[\\/]windows[\\/]theme.nsh"', "!include `"$themePath`""
 $previewExe = Join-Path $previewRoot 'installer-preview.exe'
 $previewSource = $previewSource -replace '(?m)^OutFile .*', "OutFile `"$previewExe`""
-$previewSource = $previewSource -replace '(?m)^Page custom PageReinstall PageLeaveReinstall', '; Maintenance is not executed in the preview.'
+$previewSource = $previewSource -replace '(?m)^Page custom PageReinstall PageLeaveReinstall', 'Page custom PreviewMaintenance'
 $previewSource = $previewSource -replace '(?ms)^Section WebView2\r?\n.*?^SectionEnd', "Section WebView2`n  Sleep 1200`nSectionEnd"
 $previewInstall = "Section Install`n  WriteUninstaller `"$previewRoot\uninstall-preview.exe`"`n  Sleep 1200`nSectionEnd"
 $previewSource = [regex]::Replace($previewSource, '(?ms)^Section Install\r?\n.*?^SectionEnd',
@@ -48,10 +64,6 @@ $previewSource = $previewSource -replace '(?ms)^Function \.onInstSuccess\r?\n.*?
 $previewInit = @'
 Function .onInit
   StrCpy $LANGUAGE ${LANG_ENGLISH}
-  ${GetOptions} $CMDLINE "/LANG=" $0
-  ${IfNot} ${Errors}
-    StrCpy $LANGUAGE $0
-  ${EndIf}
   StrCpy $INSTDIR "$LOCALAPPDATA\AlgorithShot"
 FunctionEnd
 '@
@@ -67,11 +79,13 @@ foreach ($functionName in @('RunMainBinary', 'CreateOrUpdateDesktopShortcut', 'C
 
 $previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW ShotWelcomeShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW PreviewWelcome')
 $previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW ShotDirectoryShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW PreviewDirectory')
+$previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW ShotLicenseShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW PreviewLicense')
 $previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW ShotProgressShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW PreviewProgress')
 $previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW ShotFinishShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW PreviewFinish')
 $previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW un.ConfirmShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW un.PreviewConfirm')
 $previewSource = $previewSource.Replace('MUI_PAGE_CUSTOMFUNCTION_SHOW un.ShotProgressShow', 'MUI_PAGE_CUSTOMFUNCTION_SHOW un.PreviewProgress')
-$previewSource = "!define PREVIEW_OUTPUT `"$previewRoot`"`n" + $previewSource
+$previewSource = "!define PREVIEW_OUTPUT `"$captureRoot`"`n" + $previewSource
+if ($Interactive) { $previewSource = "!define SHOT_PREVIEW_INTERACTIVE`n" + $previewSource }
 $previewSource += "`n!include `"$(Join-Path $PSScriptRoot 'installer-preview.nsh')`"`n"
 
 # These invariants make an accidental production installation fail closed.
@@ -96,37 +110,51 @@ try {
 }
 finally { Pop-Location }
 
-$previewLanguages = @{ English = 1033; Uzbek = 1091; Russian = 1049 }
-$selectedLanguages = if ($Language -eq 'All') { @('English', 'Uzbek', 'Russian') } else { @($Language) }
-foreach ($selectedLanguage in $selectedLanguages) {
-    $languageId = $previewLanguages[$selectedLanguage]
+if ($Interactive) {
+    Write-Output "Interactive preview (does not install the app): $previewExe"
+    return
+}
+
+$previousPreviewDpi = $env:SHOT_PREVIEW_DPI
+try {
+    $env:SHOT_PREVIEW_DPI = [string]$Dpi
+    $languageId = 1033
     $previewStarted = [DateTime]::UtcNow
-    $previewProcess = Start-Process -FilePath $previewExe -ArgumentList "/LANG=$languageId" -WindowStyle Hidden -PassThru
+    $previewProcess = Start-Process -FilePath $previewExe -WindowStyle Hidden -PassThru
     if (-not $previewProcess.WaitForExit(20000)) {
         $previewProcess.Kill()
-        throw "Preview timed out for $selectedLanguage."
+        throw 'Installer preview timed out.'
     }
-    if ($previewProcess.ExitCode -ne 0) { throw "Preview exited with code $($previewProcess.ExitCode): $selectedLanguage" }
-    foreach ($pageName in @('welcome', 'directory', 'progress', 'finish')) {
-        $capturePath = Join-Path $previewRoot "$pageName-$languageId.bmp"
+    if ($previewProcess.ExitCode -ne 0) { throw "Preview exited with code $($previewProcess.ExitCode)." }
+    $installPages = @('welcome', 'maintenance', 'directory', 'progress', 'finish')
+    if ($previewSource -match '(?m)^!define LICENSE "[^"]+"') { $installPages += 'license' }
+    foreach ($pageName in $installPages) {
+        $capturePath = Join-Path $captureRoot "$pageName-$languageId.bmp"
         if (-not (Test-Path -LiteralPath $capturePath) -or (Get-Item -LiteralPath $capturePath).LastWriteTimeUtc -lt $previewStarted) {
             throw "Missing or stale preview: $capturePath"
+        }
+        if (Select-String -LiteralPath "$capturePath.txt" -SimpleMatch 'CLIPPED_TEXT' -Quiet) {
+            throw "Clipped text in $capturePath. Inspect its control log."
         }
     }
     $uninstallPreviewExe = Join-Path $previewRoot 'uninstall-preview.exe'
     $uninstallPreviewStarted = [DateTime]::UtcNow
-    $uninstallPreviewProcess = Start-Process -FilePath $uninstallPreviewExe -ArgumentList "/LANG=$languageId", "_?=$previewRoot" -WindowStyle Hidden -PassThru
+    $uninstallPreviewProcess = Start-Process -FilePath $uninstallPreviewExe -ArgumentList "_?=$previewRoot" -WindowStyle Hidden -PassThru
     if (-not $uninstallPreviewProcess.WaitForExit(20000)) {
         $uninstallPreviewProcess.Kill()
-        throw "Uninstall preview timed out for $selectedLanguage."
+        throw 'Uninstall preview timed out.'
     }
-    if ($uninstallPreviewProcess.ExitCode -ne 0) { throw "Uninstall preview exited with code $($uninstallPreviewProcess.ExitCode): $selectedLanguage" }
+    if ($uninstallPreviewProcess.ExitCode -ne 0) { throw "Uninstall preview exited with code $($uninstallPreviewProcess.ExitCode)." }
     foreach ($pageName in @('uninstall', 'removing')) {
-        $capturePath = Join-Path $previewRoot "$pageName-$languageId.bmp"
+        $capturePath = Join-Path $captureRoot "$pageName-$languageId.bmp"
         if (-not (Test-Path -LiteralPath $capturePath) -or (Get-Item -LiteralPath $capturePath).LastWriteTimeUtc -lt $uninstallPreviewStarted) {
             throw "Missing or stale uninstall preview: $capturePath"
         }
+        if (Select-String -LiteralPath "$capturePath.txt" -SimpleMatch 'CLIPPED_TEXT' -Quiet) {
+            throw "Clipped text in $capturePath. Inspect its control log."
+        }
     }
-    Write-Output "Captured native installer pages: $selectedLanguage"
+    Write-Output "Captured native installer pages: English, $Dpi DPI"
 }
-Write-Output "Preview files: $previewRoot"
+finally { $env:SHOT_PREVIEW_DPI = $previousPreviewDpi }
+Write-Output "Preview files: $captureRoot"

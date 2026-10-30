@@ -13,8 +13,25 @@ BOOL CALLBACK DumpControl(HWND hwnd, LPARAM parameter) {
   GetWindowRect(hwnd, &rect);
   const HWND root = GetAncestor(hwnd, GA_ROOT);
   MapWindowPoints(nullptr, root, reinterpret_cast<POINT*>(&rect), 2);
+  wchar_t face[80]{};
+  HDC dc = GetDC(hwnd);
+  HFONT font = reinterpret_cast<HFONT>(SendMessageW(hwnd, WM_GETFONT, 0, 0));
+  HGDIOBJ previous = font ? SelectObject(dc, font) : nullptr;
+  GetTextFaceW(dc, 80, face);
+  bool clipped = false;
+  if (IsWindowVisible(hwnd) && lstrcmpW(kind, L"Static") == 0 && text[0] && GetDlgCtrlID(hwnd) != 1900) {
+    RECT bounds{};
+    GetClientRect(hwnd, &bounds);
+    RECT measured{0, 0, bounds.right, 0};
+    DrawTextW(dc, text, -1, &measured, DT_CALCRECT | DT_WORDBREAK | DT_NOPREFIX);
+    clipped = measured.bottom > bounds.bottom;
+  }
+  if (previous) SelectObject(dc, previous);
+  ReleaseDC(hwnd, dc);
   fwprintf(file, L"id=%d visible=%d class=%s rect=%ld,%ld,%ld,%ld text=[%s]\n",
     GetDlgCtrlID(hwnd), IsWindowVisible(hwnd), kind, rect.left, rect.top, rect.right, rect.bottom, text);
+  fwprintf(file, L"  font=[%s]\n", face);
+  if (clipped) fwprintf(file, L"  CLIPPED_TEXT\n");
   return TRUE;
 }
 
@@ -31,6 +48,23 @@ void PaintChildren(HWND parent, HWND root, HDC dc) {
     SetViewportOrgEx(dc, rect.left - rootRect.left, rect.top - rootRect.top, nullptr);
     IntersectClipRect(dc, 0, 0, rect.right - rect.left, rect.bottom - rect.top);
     SendMessageW(child, WM_PRINT, reinterpret_cast<WPARAM>(dc), PRF_NONCLIENT | PRF_CLIENT | PRF_ERASEBKGND);
+    wchar_t kind[40]{};
+    GetClassNameW(child, kind, 40);
+    if (lstrcmpW(kind, L"RichEdit20W") == 0) {
+      // Rich Edit does not render its document through WM_PRINT consistently.
+      // Use its supported print API for the off-screen preview capture.
+      RECT client{};
+      GetClientRect(child, &client);
+      FORMATRANGE range{};
+      range.hdc = dc;
+      range.hdcTarget = dc;
+      range.rc = {0, 0, MulDiv(client.right, 1440, GetDeviceCaps(dc, LOGPIXELSX)),
+        MulDiv(client.bottom, 1440, GetDeviceCaps(dc, LOGPIXELSY))};
+      range.rcPage = range.rc;
+      range.chrg = {0, -1};
+      SendMessageW(child, EM_FORMATRANGE, TRUE, reinterpret_cast<LPARAM>(&range));
+      SendMessageW(child, EM_FORMATRANGE, FALSE, 0);
+    }
     RestoreDC(dc, state);
     PaintChildren(child, root, dc);
   }
@@ -83,8 +117,11 @@ void CALLBACK CaptureTimer(HWND parent, UINT, UINT_PTR timer, DWORD) {
   const int advance = capture->advance;
   delete capture;
   if (advance == 1 || advance == 2) {
-    SetActiveWindow(parent);
-    PostMessageW(GetDlgItem(parent, 1), BM_CLICK, 0, 0);
+    // Advance the fixture without stealing focus from the user's other apps.
+    // BM_CLICK depends on an active dialog and is unreliable in background QA.
+    HWND next = GetDlgItem(parent, 1);
+    if (IsWindowEnabled(next))
+      PostMessageW(parent, WM_COMMAND, MAKEWPARAM(1, BN_CLICKED), reinterpret_cast<LPARAM>(next));
   }
 }
 } // namespace
