@@ -5,12 +5,13 @@ use anyhow::{anyhow, bail, Result};
 #[cfg(target_os = "windows")]
 use anyhow::Context;
 use image::RgbaImage;
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use std::collections::HashSet;
+use std::time::{Duration, Instant};
+use tauri::{AppHandle, Emitter, Manager};
 #[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Gdi::{
     BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC,
@@ -87,6 +88,7 @@ pub struct Session {
     pub id: u64,
     pub frames: Vec<Frame>,
     pub windows: Vec<WindowInfo>,
+    ready: Mutex<HashSet<usize>>,
 }
 
 #[derive(Clone)]
@@ -101,9 +103,29 @@ pub struct CaptureState {
     last: Mutex<Option<LastArea>>,
     counter: AtomicU64,
     starting: AtomicBool,
+    loaded_windows: Mutex<HashSet<String>>,
+    window_loaded: Condvar,
 }
 
 impl CaptureState {
+    pub fn set_window_loaded(&self, label: &str, loaded: bool) {
+        let mut overlays = self.loaded_windows.lock();
+        if loaded { overlays.insert(label.to_owned()); } else { overlays.remove(label); }
+        self.window_loaded.notify_all();
+    }
+
+    pub(crate) fn wait_for_window(&self, label: &str, timeout: Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        let mut overlays = self.loaded_windows.lock();
+        while !overlays.contains(label) {
+            let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+                bail!("The application window did not finish loading. Please retry.");
+            };
+            self.window_loaded.wait_for(&mut overlays, remaining);
+        }
+        Ok(())
+    }
+
     pub fn current(&self) -> Option<Arc<Session>> {
         self.session.lock().clone()
     }
@@ -152,11 +174,17 @@ pub fn start(app: &AppHandle, mode: &str) {
     let mode = mode.to_string();
     std::thread::spawn(move || {
         let res = begin(&app, &mode);
-        state(&app).capture.starting.store(false, Ordering::SeqCst);
         if let Err(e) = res {
+            // A failure after installing the session must not leave every next
+            // capture targeting an overlay that never opened.
+            if let Some(session) = state(&app).capture.current() {
+                cancel(&app, session.id);
+            }
+            wm::hide_overlays(&app);
             log::error!("capture failed: {e:#}");
             card::show(&app, Card::error(format!("{e:#}")));
         }
+        state(&app).capture.starting.store(false, Ordering::SeqCst);
     });
 }
 
@@ -176,28 +204,77 @@ fn begin(app: &AppHandle, mode: &str) -> Result<()> {
     if wm::hide_card(app) {
         std::thread::sleep(Duration::from_millis(60)); // let the card leave the screen
     }
+    #[cfg(target_os = "linux")]
+    if crate::platform::portal::is_wayland() { return begin_portal(app, mode); }
+    #[cfg(target_os = "windows")]
+    let frames = {
     let monitors = win::monitors();
     if monitors.is_empty() {
         bail!("no monitors found");
     }
-    let frames = monitors
+    monitors
         .iter()
         .map(|m| Ok(Frame { monitor: m.clone(), rgba: Arc::new(grab(m.rect)?) }))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Result<Vec<_>>>()?
+    };
+    #[cfg(not(target_os = "windows"))]
+    let frames = win::capture_frames()?.into_iter()
+        .map(|(monitor, pixels)| Frame { monitor, rgba: Arc::new(pixels) }).collect();
     let windows = win::visible_windows();
-    let (cx, cy) = win::cursor_pos();
     let grabbed = started.elapsed();
+    present(app, mode, frames, windows)?;
+    log::info!("screen capture completed in {grabbed:?}");
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn begin_portal(app: &AppHandle, mode: &str) -> Result<()> {
+    let main = app.get_webview_window("main").filter(|w| w.is_visible().unwrap_or(false));
+    if let Some(window) = &main { window.hide()?; }
+    let result = crate::platform::portal::screenshot(mode);
+    // A denied or cancelled desktop dialog must leave the library accessible.
+    if let Some(window) = &main { let _ = window.show(); }
+    let Some(screenshot) = result? else { return Ok(()); };
+    let image = screenshot.image;
+    let bounds = Rect::new(0, 0, image.width() as i32, image.height() as i32);
+    match mode {
+        "screen" => finish(app, image, Source::default(), bounds, "done"),
+        "text" | "qr" if screenshot.selected => finish(app, image, Source::default(), bounds, mode),
+        "region" | "window" if screenshot.selected => finish(app, image, Source::default(), bounds, "done"),
+        _ => {
+            let monitor = win::portal_monitor(image.width(), image.height());
+            // Older portals may return a full desktop. Always provide a region
+            // picker rather than silently saving the entire desktop image.
+            let mode = if mode == "window" { "region" } else { mode };
+            present(app, mode, vec![Frame { monitor, rgba: Arc::new(image.into_raw()) }], vec![])?;
+            Ok(())
+        }
+    }
+}
+
+fn present(app: &AppHandle, mode: &str, frames: Vec<Frame>, windows: Vec<WindowInfo>) -> Result<()> {
+    if frames.is_empty() { bail!("No display is available. Reconnect a display and retry."); }
+    let (cx, cy) = win::cursor_pos();
 
     let st = state(app);
     let id = st.capture.counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let session = Arc::new(Session { id, frames, windows });
+    let session = Arc::new(Session { id, frames, windows, ready: Mutex::new(HashSet::new()) });
     *st.capture.session.lock() = Some(session.clone());
 
     let settings = st.settings();
     let last = st.capture.last.lock().clone();
     for frame in &session.frames {
+        if st.capture.current().is_none_or(|current| current.id != id) { return Ok(()); }
         let m = &frame.monitor;
         let overlay = wm::overlay(app, m)?;
+        // Showing first also wakes a webview suspended after a long idle period.
+        // Input focus is assigned only after its pixels have been prepared.
+        overlay.show()?;
+        st.capture.wait_for_window(overlay.label(), Duration::from_secs(15))?;
+        if st.capture.current().is_none_or(|current| current.id != id) {
+            overlay.hide()?;
+            return Ok(());
+        }
         let windows = session
             .windows
             .iter()
@@ -219,30 +296,31 @@ fn begin(app: &AppHandle, mode: &str) -> Result<()> {
         };
         overlay.emit("overlay:start", payload)?;
     }
-    log::info!("capture {id}: grabbed {} monitor(s) in {:?}", session.frames.len(), grabbed);
+    log::info!("capture {id}: prepared {} image(s)", session.frames.len());
 
     // If an overlay never answers (page crashed), don't leave a capture hanging.
     let app = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(5));
+        std::thread::sleep(Duration::from_secs(15));
         let st = state(&app);
         if let Some(s) = st.capture.current() {
-            if s.id == id && !wm::any_overlay_visible(&app) {
-                log::warn!("capture {id}: overlay never showed, cancelling");
-                cancel(&app, id);
+            if s.id == id && s.ready.lock().len() != s.frames.len() {
+                failed(&app, id, "The capture controls could not be opened. Please retry.");
             }
         }
     });
     Ok(())
 }
 
-/// The overlay drew the frozen screen; show it now.
+/// The visible overlay drew the frozen screen; acknowledge it and assign focus.
 pub fn overlay_ready(app: &AppHandle, window: &tauri::WebviewWindow, session_id: u64, monitor_id: usize) -> Result<()> {
+    if window.label() != format!("overlay-{monitor_id}") { bail!("invalid capture window"); }
     let st = state(app);
     let Some(session) = st.capture.current().filter(|s| s.id == session_id) else {
-        window.hide()?;
+        // A slow response from an old capture must not hide a newer session.
         return Ok(());
     };
+    if !session.frames.iter().any(|f| f.monitor.id == monitor_id) { bail!("invalid capture display"); }
     window.show()?;
     let (cx, cy) = win::cursor_pos();
     let on_this = session.frames.iter().any(|f| f.monitor.id == monitor_id && f.monitor.rect.contains(cx, cy));
@@ -250,12 +328,22 @@ pub fn overlay_ready(app: &AppHandle, window: &tauri::WebviewWindow, session_id:
     if on_this || only_one {
         window.set_focus()?;
     }
+    session.ready.lock().insert(monitor_id);
     Ok(())
 }
 
 pub fn cancel(app: &AppHandle, session_id: u64) {
     if state(app).capture.take(session_id).is_some() {
         end_overlays(app, session_id);
+    }
+}
+
+pub fn failed(app: &AppHandle, session_id: u64, message: &str) {
+    if state(app).capture.take(session_id).is_some() {
+        log::error!("The capture view could not prepare its image");
+        end_overlays(app, session_id);
+        wm::hide_overlays(app);
+        card::show(app, Card::error(message.chars().take(1000).collect()));
     }
 }
 
@@ -337,6 +425,11 @@ pub fn commit(app: &AppHandle, req: CommitRequest) -> Result<()> {
 
 /// Captures the last area again, without the overlay.
 pub fn repeat_last(app: &AppHandle) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    if crate::platform::portal::is_wayland() {
+        start(app, "region");
+        return Ok(());
+    }
     let st = state(app);
     let last = st.capture.last.lock().clone();
     let Some(last) = last else {
@@ -344,7 +437,8 @@ pub fn repeat_last(app: &AppHandle) -> Result<()> {
         return Ok(());
     };
     let monitors = win::monitors();
-    let m = monitors.iter().find(|m| m.name == last.monitor_name).unwrap_or(&monitors[0]);
+    let m = monitors.iter().find(|m| m.name == last.monitor_name).or_else(|| monitors.first())
+        .ok_or_else(|| anyhow!("No display is available. Reconnect a display and retry."))?;
     let rect = last.rect.intersect(&Rect::new(0, 0, m.rect.w, m.rect.h)).ok_or_else(|| anyhow!("last area is off screen"))?;
     let on_screen = rect.offset(m.rect.x, m.rect.y);
     wm::hide_card(app);
@@ -465,8 +559,86 @@ pub fn monitor_at(app: &AppHandle, x: i32, y: i32) -> Option<tauri::Monitor> {
         })
 }
 
+/// Exercise the real webview, frame protocol and native window handshake in CI.
+/// Synthetic pixels avoid screen-recording permissions and private screen data.
+pub fn verify_overlay(app: &AppHandle) -> Result<()> {
+    use crate::{jobs::Jobs, library::Library, settings::Settings, state::{AppState, Paths}};
+    let root = std::env::temp_dir().join(format!("algorithshot-overlay-check-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&root)?;
+    let paths = Paths {
+        settings: root.join("settings.json"), database: root.join("library.db"),
+        thumbs: root.join("thumbs"), originals: root.join("originals"),
+        legacy_originals: root.join("legacy"), default_save_dir: root.join("screenshots"),
+        private_dirs: vec![root.clone()],
+    };
+    let library = Library::open(&paths.database)?;
+    app.manage(AppState::new(paths, Settings::default(), library, Jobs::new()));
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let result = (|| -> Result<()> {
+            let monitor = win::monitors().into_iter().next().ok_or_else(|| anyhow!("No display for the overlay check"))?;
+            for attempt in 0..2 {
+                let image = RgbaImage::from_fn(monitor.rect.w as u32, monitor.rect.h as u32,
+                    |x, y| image::Rgba([(x % 251) as u8, (y % 241) as u8, 97, 255]));
+                present(&app, "region", vec![Frame { monitor: monitor.clone(), rgba: Arc::new(image.into_raw()) }], vec![])?;
+                let session = state(&app).capture.current().ok_or_else(|| anyhow!("Capture ended before the overlay loaded"))?;
+                let deadline = Instant::now() + Duration::from_secs(20);
+                while session.ready.lock().len() != session.frames.len() {
+                    if Instant::now() >= deadline || state(&app).capture.current().is_none() {
+                        bail!("Overlay {} did not decode and acknowledge its native frame", attempt + 1);
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                if !wm::any_overlay_visible(&app) { bail!("The prepared capture window is hidden"); }
+                cancel(&app, session.id);
+                let deadline = Instant::now() + Duration::from_secs(3);
+                while wm::any_overlay_visible(&app) {
+                    if Instant::now() >= deadline { bail!("The capture window did not close after cancellation"); }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                println!("Verified native overlay open, frame decode and cancel (attempt {}).", attempt + 1);
+            }
+            Ok(())
+        })();
+        let code = match result {
+            Ok(()) => 0,
+            Err(error) => { eprintln!("Native capture overlay verification failed: {error:#}"); 1 }
+        };
+        // Linux/macOS can unlink an open test database; Windows removes it after
+        // the process exits via the CI runner's ordinary temporary-file cleanup.
+        let _ = std::fs::remove_dir_all(&root);
+        app.exit(code);
+    });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn readiness_is_invalidated_when_a_page_reloads() {
+        let capture = Arc::new(CaptureState::default());
+        capture.set_window_loaded("overlay-0", true);
+        capture.wait_for_window("overlay-0", Duration::ZERO).unwrap();
+        capture.set_window_loaded("overlay-0", false);
+        assert!(capture.wait_for_window("overlay-0", Duration::ZERO).is_err());
+        let waiting = capture.clone();
+        let worker = std::thread::spawn(move || waiting.wait_for_window("overlay-0", Duration::from_secs(2)));
+        capture.set_window_loaded("overlay-0", true);
+        worker.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn a_late_cancel_cannot_take_a_new_capture() {
+        let capture = CaptureState::default();
+        *capture.session.lock() = Some(Arc::new(Session { id: 2, frames: vec![], windows: vec![], ready: Mutex::new(HashSet::new()) }));
+        assert!(capture.take(1).is_none());
+        assert_eq!(capture.current().unwrap().id, 2);
+        assert!(capture.take(2).is_some());
+        assert!(capture.current().is_none());
+    }
+
     /// Reads the real screen into memory (nothing is saved or shown).
     #[test]
     fn grabs_the_main_monitor_at_full_resolution() {

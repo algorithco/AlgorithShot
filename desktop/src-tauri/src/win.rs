@@ -80,6 +80,14 @@ pub struct MonitorInfo {
     pub primary: bool,
 }
 
+pub fn overlay_position(monitor: &MonitorInfo) -> tauri::Position {
+    tauri::PhysicalPosition::new(monitor.rect.x, monitor.rect.y).into()
+}
+
+pub fn desktop_position(x: i32, y: i32) -> tauri::Position {
+    tauri::PhysicalPosition::new(x, y).into()
+}
+
 /// All monitors, primary first, with physical bounds and scale factor.
 pub fn monitors() -> Vec<MonitorInfo> {
     unsafe extern "system" fn collect(h: HMONITOR, _: HDC, _: *mut RECT, data: LPARAM) -> BOOL {

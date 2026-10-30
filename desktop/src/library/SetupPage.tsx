@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Check, CircleAlert, Keyboard, ScanLine, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorText, type AppInfo, type HotkeyStatus, type Settings } from "../shared/api";
+import { listen } from "@tauri-apps/api/event";
 import { resolveLang, translate, type Key, type Vars } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
 import { Keys, Logo } from "../shared/ui";
@@ -22,6 +23,13 @@ export function SetupPage({ onDone, onCancel }: { onDone: () => void; onCancel?:
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [status, setStatus] = useState<HotkeyStatus[]>([]);
   const [verifiedKeys, setVerifiedKeys] = useState<HotkeyStatus[] | null>(null);
+  useEffect(() => {
+    const subscription = listen<HotkeyStatus[]>("hotkeys:changed", (event) => {
+      setStatus(event.payload);
+      setVerifiedKeys(event.payload);
+    });
+    return () => { void subscription.then((unlisten) => unlisten()).catch(console.error); };
+  }, []);
   const [keyCheckFailed, setKeyCheckFailed] = useState(false);
   const [metadataAttempt, setMetadataAttempt] = useState(0);
   const [metadataFailed, setMetadataFailed] = useState(false);

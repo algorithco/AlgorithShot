@@ -50,6 +50,7 @@ export function Card() {
 
   useEffect(() => {
     initSettings();
+    let disposed = false;
     const subs = [
       listen<CardPayload>("card:show", (e) => {
         setNote(null);
@@ -74,7 +75,8 @@ export function Card() {
         });
       }),
     ];
-    return () => subs.forEach((p) => p.then((un) => un()));
+    Promise.all(subs).then(() => { if (!disposed) return api.cardLoaded(); }).catch(console.error);
+    return () => { disposed = true; subs.forEach((p) => p.then((un) => un())); };
   }, []);
 
   // Countdown ticks.

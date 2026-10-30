@@ -1,3 +1,4 @@
+import type { RasterCanvas as RasterSurface } from "../shared/canvas";
 import { describe, expect, it, vi } from "vitest";
 import type { Mark, Op } from "./doc";
 import { BaseRenderer, drawMark, markBounds } from "./render";
@@ -92,7 +93,7 @@ function rasterTest(run: () => void) {
 
 const bitmap = (width: number, height: number) => ({ width, height, trace: ["original"] }) as unknown as ImageBitmap;
 const erases = (count: number): Op[] => Array.from({ length: count }, (_, x) => ({ kind: "erase", rect: { x, y: 1, w: 1, h: 1 } }));
-const traceOf = (canvas: OffscreenCanvas) => (canvas as unknown as RasterCanvas).trace;
+const traceOf = (canvas: RasterSurface) => (canvas as unknown as RasterCanvas).trace;
 const cacheOf = (renderer: BaseRenderer) => (renderer as unknown as { cache: Map<number, { canvas: OffscreenCanvas }>; cachedBytes: number });
 
 describe("raster history cache", () => {

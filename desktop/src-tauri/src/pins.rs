@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use image::RgbaImage;
-use tauri::{AppHandle, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 
 use crate::capture::monitor_at;
 use crate::state::state;
@@ -30,7 +30,7 @@ pub fn open(app: &AppHandle, img: RgbaImage, at: Rect) -> Result<()> {
         .inner_size(w + PAD * 2.0, h + PAD * 2.0)
         .build()?;
     let pad = (PAD * scale).round() as i32;
-    window.set_position(PhysicalPosition::new(at.x - pad, at.y - pad))?;
+    window.set_position(crate::win::desktop_position(at.x - pad, at.y - pad))?;
     Ok(())
 }
 

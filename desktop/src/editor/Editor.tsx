@@ -31,6 +31,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { editorApi, errorText, imageUrl, shotUrl, type EditorInfo, type Rect, type SaveFormat } from "../shared/api";
 import { intersect, type Pt } from "../shared/geometry";
+import type { RasterCanvas } from "../shared/canvas";
 import { useT, type Key } from "../shared/i18n";
 import { initSettings } from "../shared/settings";
 import { useTheme } from "../shared/theme";
@@ -119,7 +120,7 @@ export function Editor() {
   const [saved, setSaved] = useState<Doc | null>(null);
   const [version, setVersion] = useState(0);
   const renderer = useRef<BaseRenderer | null>(null);
-  const base = useRef<OffscreenCanvas | null>(null);
+  const base = useRef<RasterCanvas | null>(null);
   const [toolState, setToolState] = useState<Tool | "highlight">("pen");
   // Older editor sessions used the same marker icon for a rectangle tool.
   const tool = toolState === "highlight" ? "marker" : toolState;

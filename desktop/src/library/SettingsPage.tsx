@@ -3,6 +3,7 @@
 
 import { AlertTriangle, Copy, Crosshair, FolderOpen, HardDrive, Info, Keyboard, SlidersHorizontal, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { api, errorText, type AppInfo, type HotkeyStatus, type Hotkeys, type Settings } from "../shared/api";
 import { HotkeyInput } from "../shared/HotkeyInput";
 import { useT, type Key } from "../shared/i18n";
@@ -28,6 +29,11 @@ export function SettingsPage() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [status, setStatus] = useState<HotkeyStatus[]>([]);
   const [group, setGroup] = useState<Group>("general");
+
+  useEffect(() => {
+    const subscription = listen<HotkeyStatus[]>("hotkeys:changed", (event) => setStatus(event.payload));
+    return () => { void subscription.then((unlisten) => unlisten()).catch(console.error); };
+  }, []);
 
   useEffect(() => {
     api.appInfo().then(setInfo);

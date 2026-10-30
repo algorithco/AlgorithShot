@@ -56,6 +56,8 @@ jobs:
             platform: macos
           - os: ubuntu-24.04
             platform: linux
+          - os: ubuntu-22.04
+            platform: linux-compat
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
@@ -68,7 +70,7 @@ jobs:
         with:
           version: 10.29.3
       - name: Install Linux build dependencies
-        if: matrix.platform == 'linux'
+        if: startsWith(matrix.platform, 'linux')
         timeout-minutes: 25
         run: |
           # Use Ubuntu's official HTTPS archive when the runner's Azure mirror is slow.
@@ -78,7 +80,7 @@ jobs:
             fi
           done
           sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Lock::Timeout=120 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev at-spi2-core pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev xvfb dbus-x11
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Lock::Timeout=120 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libayatana-appindicator3-dev librsvg2-dev patchelf libatspi2.0-dev at-spi2-core pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libwayland-dev libegl-dev libgbm-dev xvfb dbus-x11 weston
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -93,6 +95,10 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: desktop/src-tauri -> target/local
+          # Proc macros and native objects built with newer glibc/WebKitGTK
+          # cannot be reused by the Ubuntu 22.04 compatibility job.
+          key: ${{ runner.os == 'Linux' && matrix.os || '' }}
+          cache-on-failure: true
       - name: Build and verify the standalone app without signing secrets
         run: pnpm desktop:build:local --debug
       - name: Test
@@ -103,12 +109,28 @@ jobs:
         if: matrix.platform == 'macos'
         timeout-minutes: 4
         run: desktop/src-tauri/target/local/debug/algorithco-shot --verify-platform
+      - name: Verify native macOS capture overlay opens and can be reused
+        if: matrix.platform == 'macos'
+        timeout-minutes: 3
+        run: desktop/src-tauri/target/local/debug/algorithco-shot --verify-overlay
       - name: Verify native Linux OCR, clipboard, face model and X11 capture
-        if: matrix.platform == 'linux'
+        if: startsWith(matrix.platform, 'linux')
         timeout-minutes: 4
         env:
           WEBKIT_DISABLE_COMPOSITING_MODE: '1'
         run: xvfb-run -a dbus-run-session -- desktop/src-tauri/target/local/debug/algorithco-shot --verify-platform
+      - name: Verify native Linux capture overlay opens and can be reused
+        if: startsWith(matrix.platform, 'linux')
+        timeout-minutes: 3
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+        run: xvfb-run -a dbus-run-session -- desktop/src-tauri/target/local/debug/algorithco-shot --verify-overlay
+      - name: Verify native Wayland image review without DISPLAY or XWayland
+        if: matrix.platform == 'linux'
+        timeout-minutes: 3
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+        run: bash desktop/scripts/verify-wayland.sh desktop/src-tauri/target/local/debug/algorithco-shot --verify-overlay
       - name: Check native installer UI
         if: matrix.platform == 'windows'
         run: powershell -NoProfile -File desktop/dev/build-installer-ui.ps1

@@ -140,7 +140,7 @@ export class Engine {
     this.height = a.height;
     this.canvas.width = a.width;
     this.canvas.height = a.height;
-    this.ratio = a.width / Math.max(1, window.innerWidth);
+    this.fitViewport();
     this.windows = a.windows;
     this.snapOn = a.snap;
     this.highlightOn = a.highlight;
@@ -152,6 +152,16 @@ export class Engine {
     this.lines = edges([this.bounds, ...visible]);
     this.setMode(a.mode);
     this.draw();
+  }
+
+  /** A compositor may choose the size of the normal Wayland review window.
+   * Keep image pixels square and pointer coordinates exact in any aspect ratio. */
+  fitViewport() {
+    if (!this.width || !this.height) return;
+    this.ratio = Math.max(this.width / Math.max(1, window.innerWidth), this.height / Math.max(1, window.innerHeight));
+    this.canvas.style.width = `${this.width / this.ratio}px`;
+    this.canvas.style.height = `${this.height / this.ratio}px`;
+    this.changed();
   }
 
   /** Forgets the frozen screen and leaves a transparent canvas. */

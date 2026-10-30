@@ -79,6 +79,8 @@ pub struct HotkeyStatus {
     pub key: String,
     pub ok: bool,
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<String>,
 }
 
 #[cfg(test)]

@@ -65,7 +65,7 @@ export function HotkeyInput({ value, status, onChange, label, translate }: {
   return (
     <div className="hotkey">
       <button type="button" className={`hotkey-box${recording ? " recording" : ""}`} aria-label={label ?? t("set.hotkey")} aria-pressed={recording} onClick={() => setRecording(true)} onBlur={() => setRecording(false)}>
-        {recording ? t(armed ? "set.hotkeyPress" : "set.hotkeyArming") : value ? <Keys value={value} /> : <span className="muted">{t("set.hotkeyNone")}</span>}
+        {recording ? t(armed ? "set.hotkeyPress" : "set.hotkeyArming") : value ? <Keys value={status?.trigger ?? value} /> : <span className="muted">{t("set.hotkeyNone")}</span>}
       </button>
       {value && !recording && <button type="button" className="icon-btn" aria-label={`${t("set.hotkeyClear")}: ${label ?? t("set.hotkey")}`} title={t("set.hotkeyClear")} onClick={() => onChange("")}><X size={15} /></button>}
       {status && !status.ok && <span className="hotkey-warn" title={status.error ?? ""}><AlertTriangle size={15} />{t("set.hotkeyTaken")}</span>}
