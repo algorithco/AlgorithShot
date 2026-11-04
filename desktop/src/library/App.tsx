@@ -13,6 +13,7 @@ import { SettingsPage } from "./SettingsPage";
 import { useLibrary } from "./store";
 import { SetupPage } from "./SetupPage";
 import { needsSetup } from "./setup";
+import { RecordingPanel } from "../recording/RecordingPanel";
 
 export type Page = "library" | "cleanup" | "settings" | "setup";
 
@@ -151,6 +152,7 @@ export function App() {
           </div>
         </div>
       )}
+      <div hidden={setupOpen} inert={setupOpen}><RecordingPanel /></div>
       <Toasts />
     </div>
   );
