@@ -48,6 +48,7 @@ impl Jobs {
             .name("jobs".into())
             .spawn(move || {
                 for job in rx {
+                    crate::recording::wait_until_idle(&worker_app);
                     let res = match &job {
                         Job::Thumb(id) => make_thumb(&worker_app, id).map(|_| {
                             let _ = worker_app.emit("library:thumb", id);
@@ -67,6 +68,7 @@ impl Jobs {
             .spawn(move || {
                 crate::smart::init_thread();
                 for id in index_rx {
+                    crate::recording::wait_until_idle(&app);
                     if let Err(e) = crate::smart::index_shot(&app, &id) {
                         log::warn!("indexing {id} failed: {e:#}");
                     }
