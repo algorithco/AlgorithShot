@@ -31,10 +31,19 @@ pub struct Shot {
     pub edited: bool,
     /// 0 = waiting to be read, 1 = read, 2 = skipped or failed.
     pub text_state: i32,
-    /// How many private items were found; -1 = not checked yet.
+    /// How many private items were found; -1 = not checked, -2 = check failed.
     pub privacy: i32,
     /// Grows when the file changes, so cached thumbnails refresh.
     pub rev: i64,
+}
+
+/// One image revision's background results, committed together.
+pub struct ShotIndex<'a> {
+    pub text: &'a str,
+    pub text_state: i32,
+    pub privacy: i32,
+    pub privacy_json: &'a str,
+    pub phash: &'a [u8],
 }
 
 #[derive(Debug, Clone, Default)]
@@ -268,16 +277,22 @@ impl Library {
         Ok(())
     }
 
-    pub fn set_privacy(&self, id: &str, count: i32, json: &str) -> Result<()> {
-        self.conn
-            .lock()
-            .execute("UPDATE shots SET privacy = ?2, privacy_json = ?3 WHERE id = ?1", params![id, count, json])?;
-        Ok(())
-    }
-
-    pub fn set_phash(&self, id: &str, hash: &[u8]) -> Result<()> {
-        self.conn.lock().execute("UPDATE shots SET phash = ?2 WHERE id = ?1", params![id, hash])?;
-        Ok(())
+    /// Reject results if the image changed while OCR was running. Keep the
+    /// search index, privacy findings and fingerprint on the same revision.
+    pub fn set_index(&self, id: &str, rev: i64, index: &ShotIndex<'_>) -> Result<bool> {
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        let updated = tx.execute(
+            "UPDATE shots SET text = ?3, text_state = ?4, privacy = ?5, privacy_json = ?6, phash = ?7 WHERE id = ?1 AND rev = ?2 AND trashed_at IS NULL",
+            params![id, rev, index.text, index.text_state, index.privacy, index.privacy_json, index.phash],
+        )?;
+        if updated == 0 { return Ok(false); }
+        tx.execute(
+            "UPDATE shots_fts SET body = ?2 WHERE rowid = (SELECT rowid FROM shots WHERE id = ?1)",
+            params![id, search_text(index.text)],
+        )?;
+        tx.commit()?;
+        Ok(true)
     }
 
     pub fn set_favorite(&self, id: &str, favorite: bool) -> Result<()> {
@@ -290,20 +305,24 @@ impl Library {
     /// After the file changed on disk (edit, optimize): new size, new rev.
     /// `reindex` asks for the text and privacy check to run again.
     pub fn file_changed(&self, id: &str, bytes: u64, width: u32, height: u32, edited: Option<bool>, reindex: bool) -> Result<()> {
-        let conn = self.conn.lock();
-        conn.execute(
+        let mut conn = self.conn.lock();
+        let tx = conn.transaction()?;
+        tx.execute(
             "UPDATE shots SET bytes = ?2, width = ?3, height = ?4, rev = rev + 1, edited = COALESCE(?5, edited) WHERE id = ?1",
             params![id, bytes as i64, width, height, edited.map(|e| e as i64)],
         )?;
         if reindex {
-            conn.execute("UPDATE shots SET text_state = 0, privacy = -1, phash = NULL WHERE id = ?1", [id])?;
+            tx.execute("UPDATE shots SET text = '', text_state = 0, privacy = -1, privacy_json = '', phash = NULL WHERE id = ?1", [id])?;
+            tx.execute("UPDATE shots_fts SET body = '' WHERE rowid = (SELECT rowid FROM shots WHERE id = ?1)", [id])?;
         }
+        tx.commit()?;
         Ok(())
     }
 
     pub fn set_path(&self, id: &str, path: &str) -> Result<()> {
         let conn = self.conn.lock();
-        conn.execute("UPDATE shots SET path = ?2 WHERE id = ?1", params![id, path])?;
+        conn.execute("UPDATE shots SET path = ?2, format = ?3 WHERE id = ?1",
+            params![id, path, crate::imaging::Format::from_path(Path::new(path)).ext()])?;
         conn.execute(
             "UPDATE shots_fts SET name = ?2 WHERE rowid = (SELECT rowid FROM shots WHERE id = ?1)",
             params![id, search_text(&file_stem(path))],
@@ -347,6 +366,15 @@ impl Library {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id FROM shots WHERE trashed_at IS NULL AND text_state = 0 ORDER BY created DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map([limit], |r| r.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn pending_privacy(&self, limit: u32) -> Result<Vec<String>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id FROM shots WHERE trashed_at IS NULL AND privacy < 0 ORDER BY created DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map([limit], |r| r.get(0))?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
@@ -478,6 +506,19 @@ mod tests {
     }
 
     #[test]
+    fn changing_export_extension_updates_its_format() {
+        let lib = Library::in_memory();
+        let shot = add(&lib, "/screenshots/detail.png", "", 1);
+        for (extension, format) in [("webp", "webp"), ("jpeg", "jpg"), ("png", "png")] {
+            let path = format!("/screenshots/detail.{extension}");
+            lib.set_path(&shot.id, &path).unwrap();
+            let updated = lib.get(&shot.id).unwrap().unwrap();
+            assert_eq!(updated.path, path);
+            assert_eq!(updated.format, format);
+        }
+    }
+
+    #[test]
     fn search_finds_text_titles_and_both_scripts() {
         let lib = Library::in_memory();
         let a = add(&lib, r"C:\s\Telegram 1.png", "Telegram", 1);
@@ -513,6 +554,31 @@ mod tests {
         assert_eq!(q("all"), 2);
         assert_eq!(lib.stats().unwrap().count, 2);
         assert_eq!(lib.apps().unwrap()[0].count, 2);
+    }
+
+    #[test]
+    fn indexing_rejects_stale_results_and_edits_clear_private_metadata() {
+        let lib = Library::in_memory();
+        let shot = add(&lib, r"C:\s\revision.png", "", 1);
+        let index = ShotIndex { text: "syntheticsecret", text_state: 1, privacy: 1, privacy_json: "private-boxes", phash: &[1, 2] };
+        assert!(lib.set_index(&shot.id, shot.rev, &index).unwrap());
+        assert_eq!(lib.privacy_json(&shot.id).unwrap(), "private-boxes");
+        lib.file_changed(&shot.id, 101, 10, 10, Some(true), true).unwrap();
+        assert!(!lib.set_index(&shot.id, shot.rev, &index).unwrap());
+        let changed = lib.get(&shot.id).unwrap().unwrap();
+        assert_eq!(changed.privacy, -1);
+        assert_eq!(changed.text_state, 0);
+        assert!(lib.privacy_json(&shot.id).unwrap().is_empty());
+        assert!(lib.list(&ListQuery { search: "syntheticsecret".into(), ..Default::default() }).unwrap().items.is_empty());
+        assert!(lib.phashes().unwrap().is_empty());
+        let failed = ShotIndex { text: "", text_state: 2, privacy: -2, privacy_json: "", phash: &[3, 4] };
+        assert!(lib.set_index(&shot.id, changed.rev, &failed).unwrap());
+        assert_eq!(lib.get(&shot.id).unwrap().unwrap().privacy, -2);
+        assert_eq!(lib.pending_privacy(10).unwrap(), vec![shot.id.clone()]);
+        assert_eq!(lib.phashes().unwrap().len(), 1);
+        lib.set_trashed(&[shot.id.clone()], Some(5)).unwrap();
+        assert!(!lib.set_index(&shot.id, changed.rev, &index).unwrap());
+        assert!(lib.pending_privacy(10).unwrap().is_empty());
     }
 
     #[test]

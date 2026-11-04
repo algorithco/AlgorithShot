@@ -201,11 +201,12 @@ pub async fn privacy_scan(request: Request<'_>) -> CmdResult<Vec<crate::smart::p
     let (img, _) = read(&request).map_err(fail)?;
     tauri::async_runtime::spawn_blocking(move || {
         crate::smart::init_thread();
-        let text = crate::smart::ocr::read(&img).unwrap_or_default();
+        let text = crate::smart::ocr::read(&img)?;
         crate::smart::privacy::scan(&img, &text)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?
+    .map_err(fail)
 }
 
 /// The text in an image, best reading.

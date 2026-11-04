@@ -276,11 +276,11 @@ function ShotCard({
           {note && <div className="card-note">{note}</div>}
         </div>
       </div>
-      {shot && shot.privacy > 0 && (
+      {shot && (shot.privacy > 0 || shot.privacy === -2) && (
         <button className="card-privacy" onClick={() => act(() => api.openEditor(target, "privacy"))}>
           <ShieldAlert size={16} />
-          <span>{t("card.privacy", { n: shot.privacy })}</span>
-          <strong>{t("card.hide")}</strong>
+          <span>{shot.privacy === -2 ? t("pv.failed") : t("card.privacy", { n: shot.privacy })}</span>
+          <strong>{shot.privacy === -2 ? t("ed.scan") : t("card.hide")}</strong>
         </button>
       )}
       <div className="card-row">

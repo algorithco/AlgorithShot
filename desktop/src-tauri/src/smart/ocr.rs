@@ -149,8 +149,8 @@ pub fn recognize(img: &RgbaImage, lang: &str) -> Result<OcrText> {
                 rect: Rect::new(
                     (r.X as f64 / scale).floor() as i32,
                     (r.Y as f64 / scale).floor() as i32,
-                    ((r.Width as f64) / scale).ceil() as i32,
-                    ((r.Height as f64) / scale).ceil() as i32,
+                    ((r.X as f64 + r.Width as f64) / scale).ceil() as i32 - (r.X as f64 / scale).floor() as i32,
+                    ((r.Y as f64 + r.Height as f64) / scale).ceil() as i32 - (r.Y as f64 / scale).floor() as i32,
                 ),
             });
         }

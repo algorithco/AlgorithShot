@@ -593,8 +593,8 @@ export function Editor() {
           />
           </div>
           <PrivacyPanel
-            base={base.current}
-            version={version}
+            revision={doc}
+            readImage={() => flatten(renderer.current!.render(doc.ops), doc.marks)}
             open={START_PANEL === "privacy"}
             onHide={(rects, style) => {
               let next = hist!.present;
