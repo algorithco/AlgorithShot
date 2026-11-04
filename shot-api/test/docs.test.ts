@@ -41,7 +41,9 @@ test("OpenAPI discovers API schemas and uses the current server for Try it out",
   assert.equal(spec.openapi, "3.0.3");
   assert.equal(spec.info.title, "AlgorithShot API");
   assert.equal(spec.servers[0].url, "/");
-  assert.deepEqual(Object.keys(spec.paths).sort(), ["/api/v1", "/health"]);
+  assert.deepEqual(Object.keys(spec.paths).sort(), ["/api/v1", "/api/v1/auth/config", "/api/v1/me", "/api/v1/me/access", "/api/v1/me/entitlements", "/api/v1/me/offline-license", "/health", "/ready"]);
+  assert.equal(spec.components.securitySchemes.bearerAuth.scheme, "bearer");
+  assert.deepEqual(spec.paths["/api/v1/me"].get.security, [{ bearerAuth: [] }]);
   assert.equal(spec.paths["/health"].get.operationId, "getHealth");
   assert.ok(spec.paths["/health"].get.responses["200"].content["application/json"].schema);
   assert.equal(spec.paths["/api/v1"].get.operationId, "getServiceInfo");
