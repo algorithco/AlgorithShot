@@ -53,6 +53,8 @@ export function Card() {
     let disposed = false;
     const subs = [
       listen<CardPayload>("card:show", (e) => {
+        window.clearTimeout(timer.current);
+        hovering.current = false;
         setNote(null);
         setCard(e.payload);
         setShot(e.payload.kind === "shot" ? e.payload.shot : null);
