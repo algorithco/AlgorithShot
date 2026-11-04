@@ -42,6 +42,7 @@ import { PrivacyPanel } from "./Privacy";
 import { BaseRenderer, bitmapFromRgba, flatten, rgbaOf } from "./render";
 import { Stage, type Options, type Tool, type View } from "./Stage";
 import { fitCrop } from "./crop";
+import { LatestTask } from "./latestTask";
 
 const params = new URLSearchParams(location.search);
 const START_TARGET = params.get("target") ?? "";
@@ -141,10 +142,11 @@ export function Editor() {
   const [cursor, setCursor] = useState<Pt | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [format, setFormat] = useState<SaveFormat>("png");
-  const [quality, setQuality] = useState(90);
+  const [quality, setQuality] = useState(100);
   const [maxKb, setMaxKb] = useState(0);
   const [estimate, setEstimate] = useState<{ bytes: number; quality: number } | "tooBig" | null>(null);
   const [closing, setClosing] = useState(false);
+  const estimateQueue = useRef(new LatestTask());
 
   const doc = hist?.present ?? null;
   const dirty = !!hist && hist.present !== saved;
@@ -178,6 +180,8 @@ export function Editor() {
       setError(null);
       setInfo(i);
       setFormat(i.format === "jpg" || i.format === "jpeg" ? "jpeg" : i.format === "webp" ? "webp" : "png");
+      setQuality(100);
+      setMaxKb(0);
       setVersion((v) => v + 1);
       autoFit.current = true;
       getCurrentWindow().setTitle(`${i.name} — AlgorithShot`).catch(() => {});
@@ -391,18 +395,23 @@ export function Editor() {
 
   // File size, worked out a moment after the last change.
   useEffect(() => {
-    if (!doc || !base.current) return;
+    if (!doc || !base.current || busy) return;
+    let current = true;
+    const queue = estimateQueue.current;
     setEstimate(null);
-    const id = window.setTimeout(async () => {
-      try {
+    const id = window.setTimeout(() => {
+      // Allocate full-resolution pixels only when this estimate can run. On a
+      // slow CPU, older queued settings are skipped rather than piling up.
+      queue.run(async () => {
         const { rgba, w, h } = finalImage();
-        setEstimate(await editorApi.estimate(rgba, w, h, format, quality, maxKb * 1024));
-      } catch (e) {
-        setEstimate(errorText(e).includes("too_big") ? "tooBig" : null);
-      }
+        const result = await editorApi.estimate(rgba, w, h, format, quality, maxKb * 1024);
+        if (current) setEstimate(result);
+      }).catch((e) => {
+        if (current) setEstimate(errorText(e).includes("too_big") ? "tooBig" : null);
+      });
     }, 900);
-    return () => window.clearTimeout(id);
-  }, [doc, version, format, quality, maxKb]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { current = false; queue.cancel(); window.clearTimeout(id); };
+  }, [doc, version, format, quality, maxKb, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- closing with unsaved changes ----
 
@@ -593,8 +602,8 @@ export function Editor() {
           />
           </div>
           <PrivacyPanel
-            base={base.current}
-            version={version}
+            revision={doc}
+            readImage={() => flatten(renderer.current!.render(doc.ops), doc.marks)}
             open={START_PANEL === "privacy"}
             onHide={(rects, style) => {
               let next = hist!.present;

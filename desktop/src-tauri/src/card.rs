@@ -43,6 +43,7 @@ impl Card {
 pub fn show(app: &AppHandle, card: Card) {
     if let Err(e) = (|| -> anyhow::Result<()> {
         let window = wm::card(app)?;
+        window.set_always_on_top(true)?;
         window.show()?;
         crate::state::state(app).capture.wait_for_window("card", std::time::Duration::from_secs(15))?;
         window.emit("card:show", card)?;
@@ -61,6 +62,8 @@ pub fn ready(app: &AppHandle, width: f64, height: f64) -> anyhow::Result<()> {
     // it marked hidden, so a later w.hide() does nothing and the empty,
     // transparent topmost window keeps intercepting clicks.
     w.show()?;
+    // Reassert the topmost level after showing the reused notification window.
+    w.set_always_on_top(true)?;
     Ok(())
 }
 

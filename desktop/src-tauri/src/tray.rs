@@ -46,11 +46,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
             "qr" => capture::start(app, "qr"),
             "screen" => capture::start(app, "screen"),
             "timer" => capture::start_delayed(app, "region", 3),
-            "repeat" => {
-                if let Err(e) = capture::repeat_last(app) {
-                    log::warn!("repeat: {e:#}");
-                }
-            }
+            "repeat" => capture::repeat_last(app),
             "library" => open_main(app, "library"),
             "settings" => open_main(app, "settings"),
             "quit" => app.exit(0),

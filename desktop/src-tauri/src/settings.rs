@@ -24,7 +24,7 @@ pub struct Hotkeys {
 impl Default for Hotkeys {
     fn default() -> Self {
         Self {
-            capture: "Ctrl+Alt+A".into(),
+            capture: "Ctrl+Shift+A".into(),
             capture_alt: if cfg!(target_os = "windows") { "PrintScreen".into() } else { String::new() },
             text: String::new(),
             qr: String::new(),
@@ -104,12 +104,12 @@ impl Default for Settings {
             save_all: true,
             file_pattern: "{app} {date} {time}".into(),
             format: "png".into(),
-            jpeg_quality: 90,
-            webp_quality: 90,
+            jpeg_quality: 95,
+            webp_quality: 100,
             copy_after_capture: true,
             show_card: true,
             open_editor: false,
-            card_seconds: 6,
+            card_seconds: 45,
             snap: true,
             highlight: false,
             elements: true,
@@ -204,6 +204,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn fresh_installs_prefer_lossless_images_without_overriding_saved_choices() {
+        let defaults = Settings::default();
+        assert_eq!(defaults.format, "png");
+        assert_eq!(defaults.webp_quality, 100);
+        assert_eq!(defaults.jpeg_quality, 95);
+        let saved: Settings = serde_json::from_str(r#"{"format":"webp","webpQuality":73}"#).unwrap();
+        assert_eq!(saved.webp_quality, 73);
+    }
+
+    #[test]
     fn old_files_fill_in_defaults() {
         let s: Settings = serde_json::from_str(r#"{"format":"webp","hotkeys":{"capture":"F1"}}"#).unwrap();
         assert_eq!(s.format, "webp");
@@ -222,7 +232,7 @@ mod tests {
     #[test]
     fn bindings_skip_empty() {
         let h = Hotkeys { capture_alt: String::new(), text: "Ctrl+Alt+T".into(), ..Default::default() };
-        assert_eq!(h.bindings(), vec![("capture", "Ctrl+Alt+A"), ("text", "Ctrl+Alt+T")]);
+        assert_eq!(h.bindings(), vec![("capture", "Ctrl+Shift+A"), ("text", "Ctrl+Alt+T")]);
     }
 
     #[test]

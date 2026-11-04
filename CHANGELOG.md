@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0
+
+- Record a display or window on Windows at 30 or 60 fps with hardware H.264
+  encoding. Save silent MP4 clips locally and stop with Ctrl+Shift+F9.
+- Keep timed captures and quick card dismissal from interrupting each other.
+- Preserve lossless image exports and honor the selected format and size limit.
+- Refresh privacy findings when an image changes and show failed checks for retry.
+- Move library cleanup to Settings and simplify screenshot details.
+- Add Account access and entitlement endpoints to the separate Shot API.
+
 ## 0.2.1 — 2026-10-26
 
 - Publish official desktop installers, signatures and the update feed alongside

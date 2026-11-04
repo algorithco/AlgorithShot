@@ -29,7 +29,7 @@ test("unknown routes return an HTTP 404", async (t) => {
   t.after(() => app.close());
   const response = await app.inject({ method: "GET", url: "/api/v1/missing" });
   assert.equal(response.statusCode, 404);
-  assert.equal(response.json().statusCode, 404);
+  assert.equal(response.json().error.code, "not_found");
 });
 
 test("desktop development and packaged origins receive CORS headers", async (t) => {

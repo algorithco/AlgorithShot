@@ -18,7 +18,7 @@ const MARGIN = 14; // room for the shadow around the card
 export function Card() {
   useTheme();
   const t = useT();
-  const seconds = useSettings((s) => s.settings?.cardSeconds ?? 6);
+  const seconds = useSettings((s) => s.settings?.cardSeconds ?? 45);
   const [card, setCard] = useState<CardPayload | null>(null);
   const [shot, setShot] = useState<Shot | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -53,6 +53,8 @@ export function Card() {
     let disposed = false;
     const subs = [
       listen<CardPayload>("card:show", (e) => {
+        window.clearTimeout(timer.current);
+        hovering.current = false;
         setNote(null);
         setCard(e.payload);
         setShot(e.payload.kind === "shot" ? e.payload.shot : null);
@@ -274,11 +276,11 @@ function ShotCard({
           {note && <div className="card-note">{note}</div>}
         </div>
       </div>
-      {shot && shot.privacy > 0 && (
+      {shot && (shot.privacy > 0 || shot.privacy === -2) && (
         <button className="card-privacy" onClick={() => act(() => api.openEditor(target, "privacy"))}>
           <ShieldAlert size={16} />
-          <span>{t("card.privacy", { n: shot.privacy })}</span>
-          <strong>{t("card.hide")}</strong>
+          <span>{shot.privacy === -2 ? t("pv.failed") : t("card.privacy", { n: shot.privacy })}</span>
+          <strong>{shot.privacy === -2 ? t("ed.scan") : t("card.hide")}</strong>
         </button>
       )}
       <div className="card-row">

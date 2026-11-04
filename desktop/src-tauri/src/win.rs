@@ -353,3 +353,100 @@ mod tests {
         assert_eq!(friendly_app_name("ApplicationFrameHost", "Calculator"), "Calculator");
     }
 }
+
+/// Restore the visible quick card above other desktop windows without taking
+/// keyboard focus. Never show it here: dismissal and capture must keep it hidden.
+fn raise_visible_card(hwnd: HWND) -> windows::core::Result<()> {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_NOOWNERZORDER,
+    };
+    unsafe {
+        if IsWindowVisible(hwnd).as_bool() {
+            SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0,
+                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER)?;
+        }
+    }
+    Ok(())
+}
+
+/// Topmost windows can cover one another. Reassert the card's Z order even
+/// after another app raises a topmost window, including while WebView timers
+/// are throttled. One guard belongs to each native card window's lifetime.
+pub fn keep_card_on_top(window: &tauri::WebviewWindow) -> anyhow::Result<()> {
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    use std::time::Duration;
+
+    let hwnd = window.hwnd()?.0 as usize;
+    let (stop, stopped) = mpsc::channel();
+    window.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            let _ = stop.send(());
+        }
+    });
+    std::thread::Builder::new().name("quick-card-topmost".into()).spawn(move || {
+        loop {
+            match stopped.recv_timeout(Duration::from_millis(250)) {
+                Err(RecvTimeoutError::Timeout) => {
+                    if let Err(error) = raise_visible_card(HWND(hwnd as *mut _)) {
+                        log::warn!("quick card topmost guard: {error}");
+                    }
+                }
+                Ok(()) | Err(RecvTimeoutError::Disconnected) => break,
+            }
+        }
+    })?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod card_topmost_tests {
+    use super::*;
+    use windows::core::w;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DestroyWindow, GetForegroundWindow, GetWindow, GW_HWNDNEXT,
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_SHOWWINDOW, WINDOW_EX_STYLE, WS_POPUP, WS_EX_TOPMOST,
+    };
+
+    struct TestWindow(HWND);
+    impl TestWindow {
+        fn new() -> Self {
+            Self(unsafe {
+                CreateWindowExW(WINDOW_EX_STYLE::default(), w!("STATIC"), w!("card guard test"),
+                    WS_POPUP, 0, 0, 1, 1, None, None, None, None).unwrap()
+            })
+        }
+        fn show_topmost(&self) {
+            unsafe {
+                SetWindowPos(self.0, Some(HWND_TOPMOST), 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW).unwrap();
+            }
+        }
+    }
+    impl Drop for TestWindow {
+        fn drop(&mut self) { unsafe { let _ = DestroyWindow(self.0); } }
+    }
+
+    #[test]
+    fn restores_card_above_competing_topmost_window_without_focus_or_resurrection() {
+        let card = TestWindow::new();
+        let competitor = TestWindow::new();
+        // A periodic guard must never revive a dismissed card.
+        raise_visible_card(card.0).unwrap();
+        assert!(!unsafe { IsWindowVisible(card.0) }.as_bool());
+
+        card.show_topmost();
+        competitor.show_topmost();
+        let foreground = unsafe { GetForegroundWindow() };
+        raise_visible_card(card.0).unwrap();
+        // Compare our two windows; system-owned windows may rank above both.
+        let mut below = unsafe { GetWindow(card.0, GW_HWNDNEXT) }.unwrap_or_default();
+        while below != competitor.0 && !below.0.is_null() {
+            below = unsafe { GetWindow(below, GW_HWNDNEXT) }.unwrap_or_default();
+        }
+        assert_eq!(below, competitor.0);
+        assert_eq!(unsafe { GetForegroundWindow() }, foreground);
+        assert_ne!(unsafe { GetWindowLongPtrW(card.0, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST.0, 0);
+    }
+}

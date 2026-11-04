@@ -12,53 +12,70 @@ import { Section } from "./Panels";
 import { rgbaOf } from "./render";
 
 export function PrivacyPanel({
-  base,
-  version,
+  revision,
+  readImage,
   open,
   onHide,
 }: {
-  base: RasterCanvas | null;
-  version: number;
+  revision: object;
+  readImage: () => RasterCanvas;
   open: boolean;
   onHide: (rects: Rect[], style: HideStyle) => void;
 }) {
   const t = useT();
-  // Results belong to the image version they were found in; an edit makes
-  // them stale.
-  const [result, setResult] = useState<{ version: number; findings: Finding[] } | null>(null);
+  // Every document edit, including annotations, invalidates the findings.
+  const [result, setResult] = useState<{ revision: object; size: { width: number; height: number }; findings: Finding[] } | null>(null);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [scanning, setScanning] = useState(false);
-  const [style, setStyle] = useState<HideStyle>("pixelate");
+  const [style, setStyle] = useState<HideStyle>("solid");
   const autoScanned = useRef(false);
-  const findings = result && result.version === version ? result.findings : null;
+  const requestId = useRef(0);
+  const currentRevision = useRef(revision);
+  currentRevision.current = revision;
+
+  useEffect(() => () => {
+    requestId.current++;
+    autoScanned.current = false;
+  }, []);
+  const findings = result && result.revision === revision ? result.findings : null;
 
   const scan = useCallback(async () => {
-    if (!base) return;
-    const at = version;
+    const at = revision;
+    const request = ++requestId.current;
     setScanning(true);
+    setResult(null);
+    setPicked(new Set());
     try {
-      const found = await editorApi.privacyScan(rgbaOf(base), base.width, base.height);
-      setResult({ version: at, findings: found });
+      const image = readImage();
+      const found = await editorApi.privacyScan(rgbaOf(image), image.width, image.height);
+      if (request !== requestId.current || currentRevision.current !== at) return;
+      setResult({ revision: at, size: { width: image.width, height: image.height }, findings: found });
       setPicked(new Set(found.map((_, i) => i)));
     } catch (e) {
+      if (request !== requestId.current || currentRevision.current !== at) return;
       toast({ text: t("common.error", { msg: errorText(e) }), error: true });
     } finally {
-      setScanning(false);
+      if (request === requestId.current) setScanning(false);
     }
-  }, [base, version, t]);
+  }, [revision, readImage, t]);
 
   // Opened from "N private items found": look straight away, once.
   useEffect(() => {
-    if (open && base && !autoScanned.current) {
+    if (open && !autoScanned.current) {
       autoScanned.current = true;
       scan();
     }
-  }, [open, base, scan]);
+  }, [open, scan]);
 
   return (
     <Section title={t("ed.privacy")}>
+      {findings !== null && (
+        <button className="btn wide" onClick={scan} disabled={scanning}>
+          <ShieldAlert size={15} /> {scanning ? t("ed.scanning") : t("ed.scan")}
+        </button>
+      )}
       {findings === null ? (
-        <button className="btn wide" onClick={scan} disabled={scanning || !base}>
+        <button className="btn wide" onClick={scan} disabled={scanning}>
           <ShieldAlert size={15} /> {scanning ? t("ed.scanning") : t("ed.scan")}
         </button>
       ) : findings.length === 0 ? (
@@ -100,10 +117,10 @@ export function PrivacyPanel({
           />
           <button
             className="btn btn-primary wide"
-            disabled={!picked.size}
+            disabled={scanning || !picked.size}
             onClick={() => {
               onHide(
-                findings.filter((_, i) => picked.has(i)).map((f) => pad(f.rect, base)),
+                findings.filter((_, i) => picked.has(i)).map((f) => pad(f.rect, result!.size)),
                 style,
               );
               setResult(null);
@@ -118,11 +135,11 @@ export function PrivacyPanel({
 }
 
 /** A little extra room so letter edges don't peek out. */
-function pad(r: Rect, base: RasterCanvas | null): Rect {
+function pad(r: Rect, size: { width: number; height: number }): Rect {
   const p = Math.max(2, Math.round(r.h * 0.15));
   const x = Math.max(0, r.x - p);
   const y = Math.max(0, r.y - p);
-  const right = Math.min(base?.width ?? r.x + r.w + p, r.x + r.w + p);
-  const bottom = Math.min(base?.height ?? r.y + r.h + p, r.y + r.h + p);
+  const right = Math.min(size.width, r.x + r.w + p);
+  const bottom = Math.min(size.height, r.y + r.h + p);
   return { x, y, w: right - x, h: bottom - y };
 }

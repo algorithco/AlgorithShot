@@ -36,6 +36,7 @@ struct Pattern {
     /// Capture group to hide (0 = the whole match).
     group: usize,
     check: fn(&str) -> bool,
+    numeric_candidates: bool,
 }
 
 fn any(_: &str) -> bool {
@@ -54,7 +55,7 @@ fn phone_ok(s: &str) -> bool {
 /// Luhn checksum, or a known Uzbek card prefix (those don't always pass it).
 fn card_ok(s: &str) -> bool {
     let d = digits(s);
-    if d.len() < 13 || d.len() > 19 {
+    if d.len() < 13 || d.len() > 19 || d.chars().all(|c| c == d.chars().next().unwrap()) {
         return false;
     }
     if ["8600", "9860", "5614", "6262"].iter().any(|p| d.starts_with(p)) && d.len() == 16 {
@@ -79,18 +80,20 @@ fn card_ok(s: &str) -> bool {
 }
 
 static PATTERNS: LazyLock<Vec<Pattern>> = LazyLock::new(|| {
-    let p = |kind, re: &str, group, check| Pattern { kind, re: Regex::new(re).expect("valid regex"), group, check };
+    let p = |kind, re: &str, group, check| Pattern { kind, re: Regex::new(re).expect("valid regex"), group, check, numeric_candidates: false };
     vec![
-        p("email", r"(?i)\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b", 0, any),
+        p("password", r#"(?i)\b(?:[a-z][a-z0-9]*[_-])*(?:password|passwd|pwd|parol|пароль|api[_ -]?key|(?:access|auth|refresh)[_ -]?token|(?:client[_ -]?)?secret|secret[_ -]?access[_ -]?key|authorization)\s*["']?\s*[:=]\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:Bearer\s+)?[^\s"']+)"#, 1, any),
+        p("email", r"(?i)\b[a-z0-9._%+\-]+\s*@\s*[a-z0-9\-]+(?:\s*\.\s*[a-z0-9\-]+)*\s*\.\s*[a-z]{2,}\b", 0, any),
         p("key", r"\b(?:sk-(?:ant-)?[A-Za-z0-9_\-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{30,}|xox[baprs]-[A-Za-z0-9\-]{10,}|eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}|\d{8,10}:[A-Za-z0-9_\-]{30,})", 0, any),
-        p("password", r"(?i)\b(?:password|passwd|pwd|parol|пароль)\s*[:=]\s*(\S+)", 1, any),
         // Masked card numbers still show the bank and last digits.
         p("card", r"\b\d{4}[ \-]?(?:[*xX•]{4}[ \-]?){2}\d{4}\b", 0, any),
-        p("card", r"\b(?:\d[ \-]?){12,18}\d\b", 0, card_ok),
+        Pattern { numeric_candidates: true, ..p("card", r"\b[0-9]+(?:[ \-][0-9]+)*\b", 0, card_ok) },
         p("iban", r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b", 0, any),
         p("pinfl", r"\b[3-6]\d{13}\b", 0, any),
-        p("passport", r"\b[A-Z]{2} ?\d{7}\b", 0, any),
-        p("phone", r"\+?998[\s\-]?\(?\d{2}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}\b", 0, phone_ok),
+        p("passport", r"(?i)\b[A-Z]{2}\s?\d{7}\b", 0, any),
+        // OCR often reads 1 as I/l and 0 as O. Only accept these with an ID label.
+        p("passport", r"(?i)\b(?:passport|pasport|паспорт)\s*[:=]?\s*([A-Z]{2}\s*[0-9OIl](?:\s*[0-9OIl]){6})\b", 1, any),
+        p("phone", r"\+?\b998[\s\-]?\(?\d{2}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}\b", 0, phone_ok),
         p("phone", r"\+\d{1,3}[\s\-]?\(?\d{1,4}\)?(?:[\s\-]?\d{2,4}){2,4}\b", 0, phone_ok),
         p("phone", r"\b\(?\d{2}\)?[\s\-]\d{3}[\s\-]\d{2}[\s\-]\d{2}\b", 0, phone_ok),
         p("ip", r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b", 0, any),
@@ -99,6 +102,9 @@ static PATTERNS: LazyLock<Vec<Pattern>> = LazyLock::new(|| {
 
 /// Shows the first and last couple of characters and masks the rest.
 pub fn mask(kind: &str, value: &str) -> String {
+    if matches!(kind, "password" | "key") {
+        return "••••••••".into();
+    }
     if kind == "email" {
         if let Some((local, domain)) = value.split_once('@') {
             let first: String = local.chars().take(1).collect();
@@ -132,6 +138,45 @@ fn union(a: Rect, b: Rect) -> Rect {
     Rect::new(x, y, a.right().max(b.right()) - x, a.bottom().max(b.bottom()) - y)
 }
 
+/// Inspect bounded digit sequences independently: a neighboring amount or
+/// another card must not turn a valid card into one rejected greedy match.
+fn card_ranges(text: &str, runs: &Regex) -> Vec<std::ops::Range<usize>> {
+    let mut candidates = Vec::new();
+    for run in runs.find_iter(text) {
+        let bytes = run.as_str().as_bytes();
+        for start in 0..bytes.len() {
+            if !bytes[start].is_ascii_digit() || (start > 0 && bytes[start - 1].is_ascii_digit()) {
+                continue;
+            }
+            let mut count = 0;
+            for end in start..bytes.len() {
+                if !bytes[end].is_ascii_digit() { continue; }
+                count += 1;
+                if count > 19 { break; }
+                if count < 13 || (end + 1 < bytes.len() && bytes[end + 1].is_ascii_digit()) { continue; }
+                let range = run.start() + start..run.start() + end + 1;
+                let value = &text[range.clone()];
+                if card_ok(value) {
+                    // Prefer complete common 16-digit cards over a checksum
+                    // coincidence formed by including an adjacent number.
+                    let grouped = count == 16 && value.split([' ', '-']).all(|g| g.len() == 4);
+                    candidates.push((grouped, count == 16, range));
+                }
+            }
+        }
+    }
+    candidates.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1))
+        .then(a.2.start.cmp(&b.2.start)).then(b.2.end.cmp(&a.2.end)));
+    let mut out: Vec<std::ops::Range<usize>> = Vec::new();
+    for (_, _, candidate) in candidates {
+        if !out.iter().any(|r| r.start < candidate.end && r.end > candidate.start) {
+            out.push(candidate);
+        }
+    }
+    out.sort_by_key(|r| r.start);
+    out
+}
+
 /// Pattern matches in one OCR line, each with the union of its words' boxes.
 fn scan_line(line: &Line) -> Vec<Finding> {
     // The line as text, remembering which bytes belong to which word.
@@ -142,31 +187,44 @@ fn scan_line(line: &Line) -> Vec<Finding> {
             text.push(' ');
         }
         let start = text.len();
-        text.push_str(&w.text);
+        // Normalize OCR whitespace and typography without changing word ownership.
+        for c in w.text.chars() {
+            match c {
+                '\u{200b}' | '\u{feff}' | '\u{00ad}' => {},
+                c if c.is_whitespace() => text.push(' '),
+                '‐' | '‑' | '–' | '−' => text.push('-'),
+                '＠' => text.push('@'),
+                '．' => text.push('.'),
+                c => text.push(c),
+            }
+        }
         spans.push((start, text.len()));
     }
     let mut taken: Vec<(usize, usize)> = Vec::new();
     let mut out = Vec::new();
     for p in PATTERNS.iter() {
-        for caps in p.re.captures_iter(&text) {
-            let Some(m) = caps.get(p.group) else { continue };
-            let whole = caps.get(0).unwrap();
-            if !(p.check)(whole.as_str()) {
-                continue;
-            }
+        let matches: Vec<_> = if p.numeric_candidates {
+            card_ranges(&text, &p.re)
+        } else {
+            p.re.captures_iter(&text).filter_map(|caps| {
+                let m = caps.get(p.group)?;
+                (p.check)(m.as_str()).then_some(m.start()..m.end())
+            }).collect()
+        };
+        for m in matches {
             // Earlier, more specific patterns win over later ones.
-            if taken.iter().any(|&(s, e)| m.start() < e && m.end() > s) {
+            if taken.iter().any(|&(s, e)| m.start >= s && m.end <= e) {
                 continue;
             }
             let rect = spans
                 .iter()
                 .zip(&line.words)
-                .filter(|((s, e), _)| *s < m.end() && *e > m.start())
+                .filter(|((s, e), _)| *s < m.end && *e > m.start)
                 .map(|(_, w)| w.rect)
                 .reduce(union);
             if let Some(rect) = rect {
-                taken.push((m.start(), m.end()));
-                out.push(Finding { kind: p.kind.to_string(), preview: mask(p.kind, m.as_str()), rect });
+                taken.push((m.start, m.end));
+                out.push(Finding { kind: p.kind.to_string(), preview: mask(p.kind, &text[m.clone()]), rect });
             }
         }
     }
@@ -179,8 +237,10 @@ pub fn find_in_text(results: &[OcrText]) -> Vec<Finding> {
         for line in &r.lines {
             for f in scan_line(line) {
                 // The same item read by two engines counts once.
-                let dup = out.iter().any(|o| o.kind == f.kind && o.rect.intersect(&f.rect).is_some_and(|i| i.area() * 2 >= f.rect.area().min(o.rect.area())));
-                if !dup {
+                let dup = out.iter_mut().find(|o| o.kind == f.kind && o.rect.intersect(&f.rect).is_some_and(|i| i.area() * 2 >= f.rect.area().min(o.rect.area())));
+                if let Some(existing) = dup {
+                    existing.rect = union(existing.rect, f.rect);
+                } else {
                     out.push(f);
                 }
             }
@@ -198,6 +258,7 @@ thread_local! {
 #[cfg(target_os = "windows")]
 pub fn find_faces(img: &RgbaImage) -> Result<Vec<Finding>> {
     let (w, h) = img.dimensions();
+    if w == 0 || h == 0 { return Ok(Vec::new()); }
     let scale = (1280.0 / w.max(h) as f64).min(1.0);
     let small = if scale < 1.0 { imaging::resize(img, ((w as f64 * scale) as u32).max(1), ((h as f64 * scale) as u32).max(1))? } else { img.clone() };
     let gray = SoftwareBitmap::Convert(&super::ocr::bitmap(&small)?, BitmapPixelFormat::Gray8)?;
@@ -214,7 +275,7 @@ pub fn find_faces(img: &RgbaImage) -> Result<Vec<Finding>> {
     for face in faces {
         let b = face.FaceBox()?;
         // A little margin: the detector's box is tight around the face.
-        let pad = (b.Width as f64 * 0.15) as i32;
+        let pad = (b.Width as f64 / scale * 0.15) as i32;
         let rect = Rect::new(
             (b.X as f64 / scale) as i32 - pad,
             (b.Y as f64 / scale) as i32 - pad,
@@ -252,13 +313,10 @@ pub fn find_faces(img: &RgbaImage) -> Result<Vec<Finding>> {
 }
 
 /// Everything private in an image: text matches plus faces.
-pub fn scan(img: &RgbaImage, text: &[OcrText]) -> Vec<Finding> {
+pub fn scan(img: &RgbaImage, text: &[OcrText]) -> Result<Vec<Finding>> {
     let mut found = find_in_text(text);
-    match find_faces(img) {
-        Ok(faces) => found.extend(faces),
-        Err(e) => log::debug!("face detection: {e:#}"),
-    }
-    found
+    found.extend(find_faces(img)?);
+    Ok(found)
 }
 
 #[cfg(test)]
@@ -308,6 +366,37 @@ mod tests {
     }
 
     #[test]
+    fn handles_ocr_spacing_and_secret_labels() {
+        assert!(kinds("Contact test.user @ example . uz").contains(&"email".into()));
+        assert!(kinds("Tel: +998\u{a0}90‑123‑45‑67").contains(&"phone".into()));
+        assert_eq!(kinds("passport ab1234567"), vec!["passport"]);
+        assert_eq!(kinds("Passport: ABI 234567"), vec!["passport"]);
+        assert!(kinds("ABI 234567").is_empty());
+        assert_eq!(kinds("api_key: synthetic_secret"), vec!["password"]);
+        let found = scan_line(&line("password: \"two words\""));
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].rect.right(), line("password: \"two words\"").words.last().unwrap().rect.right());
+        assert_eq!(mask("password", "!@#$"), "••••••••");
+        assert_eq!(mask("key", "sk-test-secret"), "••••••••");
+        assert!(kinds("0000000000000000").is_empty());
+    }
+
+    #[test]
+    fn duplicate_engine_boxes_keep_all_edges() {
+        let first = line("test@example.uz");
+        let mut second = first.clone();
+        second.words[0].rect.x += 5;
+        second.words[0].rect.w += 10;
+        let expected = union(first.words[0].rect, second.words[0].rect);
+        let found = find_in_text(&[
+            OcrText { lang: "en".into(), lines: vec![first] },
+            OcrText { lang: "ru".into(), lines: vec![second] },
+        ]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].rect, expected);
+    }
+
+    #[test]
     fn ignores_ordinary_numbers() {
         assert!(kinds("Summa 150 000 soʻm, 23.10.2026").is_empty());
         assert!(kinds("Order 1234 5678 9012 3456").is_empty()); // fails Luhn, no Uzbek prefix
@@ -324,6 +413,55 @@ mod tests {
         // The password pattern hides only the value, not the label.
         let pw = scan_line(&line("Parol: qwerty123"));
         assert_eq!(pw[0].rect.x, 70);
+    }
+
+    #[test]
+    fn card_detection_does_not_consume_neighboring_numbers() {
+        for text in [
+            "Karta 8600 1234 5678 9012 42",
+            "42 8600 1234 5678 9012",
+            "4111 1111 1111 1111 42",
+            "8600 1234 5678 9012 9860 1234 5678 9012",
+        ] {
+            let found = scan_line(&line(text));
+            let cards: Vec<_> = found.iter().filter(|f| f.kind == "card").collect();
+            let expected = if text.contains("9860") { 2 } else { 1 };
+            assert_eq!(cards.len(), expected, "{text}: {found:?}");
+            if text.ends_with(" 42") {
+                assert!(cards[0].rect.right() < line(text).words.last().unwrap().rect.x);
+            }
+        }
+    }
+
+    #[test]
+    fn escaped_quotes_do_not_leave_secret_suffixes_visible() {
+        let input = r#"password: "synthetic\" secret tail" done"#;
+        let words = line(input);
+        let found = scan_line(&words);
+        let password = found.iter().find(|f| f.kind == "password").unwrap();
+        assert_eq!(password.rect.right(), words.words[3].rect.right());
+        assert_eq!(password.preview, "••••••••");
+    }
+
+    #[test]
+    fn secret_context_wins_over_previews_that_reveal_characters() {
+        for text in [
+            "password: synthetic@example.uz",
+            "DB_PASSWORD=synthetic@example.uz",
+            "CLIENT_SECRET=synthetic-secret",
+            "AWS_SECRET_ACCESS_KEY=synthetic-secret",
+        ] {
+            let found = scan_line(&line(text));
+            assert_eq!(found.len(), 1, "{text}: {found:?}");
+            assert_eq!(found[0].kind, "password");
+            assert_eq!(found[0].preview, "••••••••");
+        }
+    }
+
+    #[test]
+    fn rejects_partial_matches_inside_longer_identifiers() {
+        assert!(kinds("reference 123998901234567").is_empty());
+        assert!(kinds("serial 000000000000000000000").is_empty());
     }
 
     #[test]

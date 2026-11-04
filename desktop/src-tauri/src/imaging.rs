@@ -17,6 +17,28 @@ pub enum Format {
     Webp,
 }
 
+/// The exact bytes selected for export. Saving this result avoids a second
+/// encode with different settings (or a different result under a size limit).
+pub struct EncodedImage {
+    pub data: Vec<u8>,
+    pub format: Format,
+    pub quality: u8,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl EncodedImage {
+    pub fn new(img: &RgbaImage, format: Format, quality: u8, max_bytes: usize) -> Result<Self> {
+        let quality = if format == Format::Png { 100 } else { quality.clamp(1, 100) };
+        let (data, quality) = if max_bytes > 0 {
+            encode_under(img, format, max_bytes)?
+        } else {
+            (encode(img, format, quality)?, quality)
+        };
+        Ok(Self { data, format, quality, width: img.width(), height: img.height() })
+    }
+}
+
 impl Format {
     pub fn parse(s: &str) -> Format {
         match s.to_ascii_lowercase().as_str() {
@@ -109,22 +131,32 @@ pub fn encode(img: &RgbaImage, format: Format, quality: u8) -> Result<Vec<u8>> {
 
 /// Lossless PNG recompression: same pixels, smaller file.
 pub fn optimize_png(data: &[u8]) -> Result<Vec<u8>> {
-    let mut opts = oxipng::Options::from_preset(2);
+    let mut opts = oxipng::Options::from_preset(1);
     opts.strip = oxipng::StripChunks::Safe;
+    // Compression changes file size, never image quality. Keep optional work
+    // bounded on slower CPUs; the encoder already produced a lossless image.
+    opts.timeout = Some(std::time::Duration::from_secs(2));
     oxipng::optimize_from_memory(data, &opts).map_err(|e| anyhow!("oxipng: {e}"))
 }
 
 /// Finds the best quality that keeps a JPEG or WebP under `max_bytes`.
 /// Returns the bytes and the quality used.
 pub fn encode_under(img: &RgbaImage, format: Format, max_bytes: usize) -> Result<(Vec<u8>, u8)> {
+    // WebP at 100 is lossless and can be *smaller* than its lossy encodings
+    // for text and flat UI. Always try it before reducing quality. JPEG also
+    // gets the full quality range rather than stopping at 95.
+    let full = encode(img, format, 100)?;
+    if full.len() <= max_bytes {
+        return Ok((full, 100));
+    }
     if format == Format::Png {
-        let data = optimize_png(&encode(img, Format::Png, 100)?)?;
+        let data = optimize_png(&full)?;
         if data.len() > max_bytes {
             bail!("too_big");
         }
         return Ok((data, 100));
     }
-    let (mut lo, mut hi) = (5u8, 95u8);
+    let (mut lo, mut hi) = (5u8, 99u8);
     let mut best: Option<(Vec<u8>, u8)> = None;
     while lo <= hi {
         let q = lo + (hi - lo) / 2;
@@ -374,6 +406,62 @@ mod tests {
         let img = checker(40, 30);
         let data = encode(&img, Format::Webp, 100).unwrap();
         assert_eq!(image::load_from_memory(&data).unwrap().to_rgba8(), img);
+    }
+
+    #[test]
+    fn size_limit_keeps_lossless_webp_when_it_fits() {
+        let img = checker(321, 123);
+        let full = encode(&img, Format::Webp, 100).unwrap();
+        let (data, quality) = encode_under(&img, Format::Webp, full.len()).unwrap();
+        assert_eq!(quality, 100);
+        assert_eq!(data, full);
+        assert_eq!(image::load_from_memory(&data).unwrap().to_rgba8(), img);
+    }
+
+    #[test]
+    fn size_limit_uses_the_full_jpeg_quality_range() {
+        let img = checker(123, 77);
+        let full = encode(&img, Format::Jpeg, 100).unwrap();
+        let (data, quality) = encode_under(&img, Format::Jpeg, full.len()).unwrap();
+        assert_eq!(quality, 100);
+        assert_eq!(data, full);
+    }
+
+    #[test]
+    fn png_preserves_native_4k_details_at_every_quality_setting() {
+        // Single-pixel strokes and saturated colour boundaries expose scaling
+        // and lossy compression that might pass unnoticed in a smooth photo.
+        let img = RgbaImage::from_fn(3840, 2160, |x, y| {
+            if x % 13 == 0 || y % 17 == 0 { Rgba([12, 24, 48, 255]) }
+            else if x % 7 == 0 { Rgba([242, 35, 85, 255]) }
+            else { Rgba([248, 249, 252, 255]) }
+        });
+        for quality in [10, 100] {
+            let started = std::time::Instant::now();
+            let output = EncodedImage::new(&img, Format::Png, quality, 0).unwrap();
+            eprintln!("4K lossless PNG: {} bytes, encoded in {:?}", output.data.len(), started.elapsed());
+            assert_eq!((output.width, output.height), (3840, 2160));
+            assert_eq!(output.quality, 100);
+            assert_eq!(image::load_from_memory(&output.data).unwrap().to_rgba8(), img);
+        }
+    }
+
+    #[test]
+    fn png_keeps_transparent_and_semitransparent_pixels() {
+        let img = RgbaImage::from_fn(37, 19, |x, y| Rgba([x as u8 * 3, y as u8 * 7, 211, (x * y % 256) as u8]));
+        let output = EncodedImage::new(&img, Format::Png, 10, 0).unwrap();
+        assert_eq!(image::load_from_memory(&output.data).unwrap().to_rgba8(), img);
+    }
+
+    #[test]
+    fn capped_export_keeps_dimensions_and_respects_the_limit() {
+        let img = checker(321, 123);
+        let limit = encode(&img, Format::Jpeg, 100).unwrap().len() / 2;
+        let output = EncodedImage::new(&img, Format::Jpeg, 100, limit).unwrap();
+        assert!(output.data.len() <= limit);
+        assert!(output.quality < 100);
+        assert_eq!(image::load_from_memory(&output.data).unwrap().to_rgba8().dimensions(), (321, 123));
+        assert!(EncodedImage::new(&img, Format::Png, 10, 10).is_err());
     }
 
     #[test]

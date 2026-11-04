@@ -18,13 +18,22 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "test:redis": "node --test test/redis.test.ts",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:container": "node scripts/container-smoke.mjs",
+    "account:check": "node --env-file-if-exists=.env scripts/check-account.ts"
   },
+  "files": ["dist", "README.md", "docs", "integration"],
   "dependencies": {
     "@fastify/cors": "^11.3.1",
+    "@fastify/helmet": "13.1.1",
+    "@fastify/rate-limit": "^10.3.0",
     "@fastify/swagger": "9.9.2",
     "@fastify/swagger-ui": "6.1.2",
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.7",
+    "ioredis": "5.8.1",
+    "jose": "6.2.8"
   },
   "devDependencies": {
     "@types/node": "~24.13.6",

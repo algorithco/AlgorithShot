@@ -520,36 +520,6 @@
   color: var(--tally-text);
 }
 
-.details-text {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-}
-
-.details-text-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 30px;
-}
-
-.details-text-head .btn {
-  height: 28px;
-  padding: 0 8px;
-  font-size: 12px;
-}
-
-.details-text-body {
-  margin-top: 6px;
-  max-height: 260px;
-  overflow-y: auto;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--ink-2);
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-}
-
 .selection-bar,
 .cleanup-bar {
   position: absolute;

@@ -92,14 +92,7 @@ pub fn run(app: &AppHandle, action: &str) {
         "text" => capture::start(app, "text"),
         "qr" => capture::start(app, "qr"),
         "screen" => capture::start(app, "screen"),
-        "repeat" => {
-            let app = app.clone();
-            std::thread::spawn(move || {
-                if let Err(e) = capture::repeat_last(&app) {
-                    log::warn!("repeat: {e:#}");
-                }
-            });
-        }
+        "repeat" => capture::repeat_last(app),
         "library" => {
             let app = app.clone();
             std::thread::spawn(move || {

@@ -60,11 +60,14 @@ fn render_text(lines: &[&str], size: i32) -> RgbaImage {
 #[test]
 fn ocr_reads_text_and_privacy_finds_items() {
     init_thread();
+    let password = format!("Password: {}", ["synthetic", "secret", "123"].join("-"));
     let img = render_text(
         &[
             "Invoice 42 paid by test.user@example.uz",
             "Tel: +998 90 123 45 67",
             "Karta: 8600 1234 5678 9012",
+            &password,
+            "Passport: AB1234567",
         ],
         20,
     );
@@ -74,7 +77,7 @@ fn ocr_reads_text_and_privacy_finds_items() {
 
     let found = privacy::find_in_text(&results);
     let kinds: Vec<&str> = found.iter().map(|f| f.kind.as_str()).collect();
-    for want in ["email", "phone", "card"] {
+    for want in ["email", "phone", "card", "password", "passport"] {
         assert!(kinds.contains(&want), "missing {want}: {kinds:?} in {text:?}");
     }
     // Each box sits on its own line of the picture.
@@ -91,6 +94,15 @@ fn russian_engine_reads_cyrillic() {
     let img = render_text(&["Оплата прошла успешно, Ташкент"], 24);
     let all = ocr::union_text(&ocr::read(&img).unwrap()).to_lowercase();
     assert!(all.contains("оплата") && all.contains("ташкент"), "read: {all}");
+}
+
+#[test]
+fn privacy_scan_handles_small_and_odd_sized_images() {
+    init_thread();
+    for (w, h) in [(1, 1), (31, 17), (101, 99), (1001, 65), (2601, 99)] {
+        let image = RgbaImage::from_pixel(w, h, Rgba([255, 255, 255, 255]));
+        assert!(privacy::scan(&image, &[]).unwrap_or_else(|e| panic!("{w}x{h}: {e:#}")).is_empty());
+    }
 }
 
 #[test]

@@ -76,7 +76,7 @@ export function applyOp(src: RasterCanvas, op: Op): RasterCanvas {
   }
 }
 
-/** Covers private data. Pixelate and solid can't be undone by "un-blurring". */
+/** Solid replaces the pixels; blur and pixelation retain image information. */
 function hide(ctx: Ctx, src: RasterCanvas, r: Rect, style: HideStyle, strength: number) {
   ctx.save();
   ctx.beginPath();
