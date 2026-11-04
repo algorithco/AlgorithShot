@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "description": "Integration handoff; the current Account service does not auto-import this file.",
+  "product": {
+    "key": "shot",
+    "name": "AlgorithShot",
+    "defaultPlan": "free",
+    "plans": [{ "key": "free", "name": "Free", "interval": "none", "rank": 0, "purchasable": false, "price": { "amountMinor": null, "currency": null, "stripePriceId": null }, "limits": {} }]
+  },
+  "oidcClient": {
+    "client_id": "shot-desktop",
+    "client_name": "AlgorithShot Desktop",
+    "application_type": "native",
+    "redirect_uris": ["http://127.0.0.1/callback"],
+    "response_types": ["code"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "token_endpoint_auth_method": "none",
+    "id_token_signed_response_alg": "ES256"
+  },
+  "authorization": {
+    "resource": "urn:algorithco:platform-api",
+    "audience": "algorithco-platform-api",
+    "requestedScopes": ["openid", "profile", "email", "offline_access", "shot:access", "entitlements:read", "license:issue"],
+    "resourceScopes": ["profile", "email", "shot:access", "entitlements:read", "license:issue"],
+    "accountApiClientId": "shot-desktop",
+    "licenseProducts": ["shot"]
+  },
+  "offline": {
+    "licenseAudience": "algorithco-products",
+    "maxAgeSeconds": 604800,
+    "refreshAfterSeconds": 86400,
+    "dedicatedLicenseSigningKeys": true,
+    "deviceIdRequired": true
+  }
+}
