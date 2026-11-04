@@ -1,0 +1,85 @@
+.rec-launcher {
+  position: fixed;
+  bottom: 18px;
+  right: 20px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.rec-launcher > .btn { height: 34px; }
+.rec-launcher-open { border-color: transparent; }
+.rec-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--danger); }
+.rec-time { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.rec-stop { background: var(--danger-soft); border-color: transparent; color: var(--danger); }
+.rec-stop:hover { background: var(--danger-soft); border-color: var(--danger); }
+
+.rec-dialog {
+  width: min(500px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 0;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.rec-dialog::backdrop { background: rgb(0 0 0 / 38%); }
+.rec-header { display: flex; align-items: flex-start; gap: 12px; padding: 23px 24px 18px; }
+.rec-header > div { flex: 1; }
+.rec-header h2 { margin: 0 0 5px; font-size: 23px; line-height: 1.2; }
+.rec-description { margin: 0; color: var(--muted); font-size: 13px; }
+.rec-header > .icon-btn { flex: none; }
+.rec-form { display: grid; gap: 18px; padding: 0 24px 24px; }
+.rec-field { display: grid; gap: 7px; }
+.rec-field-title { font-weight: 600; font-size: 13px; }
+.rec-select-row { display: flex; gap: 7px; min-width: 0; }
+.rec-select-row select { flex: 1; min-width: 0; }
+.rec-select {
+  width: 100%;
+  min-height: 37px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.rec-select:disabled { opacity: .55; }
+.rec-help { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.rec-quality { margin: 0; color: var(--ink-2); font-size: 12px; }
+.rec-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; }
+.rec-check input { margin: 0; width: 16px; height: 16px; accent-color: var(--tally); }
+.rec-audio { display: flex; align-items: flex-start; gap: 11px; padding: 13px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.rec-audio > svg { flex: none; color: var(--muted); margin-top: 2px; }
+.rec-audio strong { display: block; margin-bottom: 3px; font-size: 13px; font-weight: 600; }
+.rec-error { margin: 0; padding: 11px 13px; background: var(--danger-soft); color: var(--danger); border-radius: var(--radius); font-size: 13px; overflow-wrap: anywhere; user-select: text; }
+.rec-empty { padding: 12px 0; display: grid; gap: 12px; }
+.rec-empty > .btn { justify-self: start; }
+.rec-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.rec-actions .btn { height: 36px; }
+.rec-progress { display: grid; gap: 18px; padding: 6px 24px 24px; }
+.rec-status { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.rec-status-completed { color: var(--ok); }
+.rec-status-failed { color: var(--danger); }
+.rec-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0; padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.rec-stats dt { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.rec-stats dd { font: 23px/1.3 var(--font-mono); margin: 0; font-variant-numeric: tabular-nums; }
+.rec-stats .rec-frame-count { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+.rec-path { display: grid; gap: 5px; min-width: 0; }
+.rec-path strong { font-size: 12px; color: var(--muted); font-weight: 500; }
+.rec-path span { font: 12px/1.5 var(--font-mono); overflow-wrap: anywhere; user-select: text; }
+
+@media (max-width: 560px) {
+  .rec-launcher { right: 12px; bottom: 12px; }
+  .rec-header { padding: 20px 18px 16px; }
+  .rec-form { padding: 0 18px 20px; }
+  .rec-progress { padding: 6px 18px 20px; }
+}

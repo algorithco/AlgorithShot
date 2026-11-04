@@ -1,0 +1,38 @@
+services:
+  redis:
+    image: redis:8.2-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${SHOT_REDIS_PASSWORD:?set SHOT_REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    volumes:
+      - shot-rate-limit:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+  api:
+    build:
+      context: ../..
+      dockerfile: shot-api/infra/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DOCS_ENABLED: "false"
+      REDIS_URL: ${REDIS_URL:?set an encoded redis:// URL matching SHOT_REDIS_PASSWORD}
+    depends_on:
+      redis: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:${SHOT_API_PORT:-3000}:3000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    stop_grace_period: 15s
+volumes:
+  shot-rate-limit:

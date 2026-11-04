@@ -102,12 +102,27 @@ pub struct CaptureState {
     session: Mutex<Option<Arc<Session>>>,
     last: Mutex<Option<LastArea>>,
     counter: AtomicU64,
-    starting: AtomicBool,
+    starting: Arc<AtomicBool>,
     loaded_windows: Mutex<HashSet<String>>,
     window_loaded: Condvar,
 }
 
+/// Owns the capture slot from request dispatch through countdown and capture.
+/// Dropping it also releases the slot on early returns and worker panics.
+struct CaptureStart(Arc<AtomicBool>);
+
+impl Drop for CaptureStart {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 impl CaptureState {
+    fn try_start(&self) -> Option<CaptureStart> {
+        self.starting.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .ok().map(|_| CaptureStart(self.starting.clone()))
+    }
+
     pub fn set_window_loaded(&self, label: &str, loaded: bool) {
         let mut overlays = self.loaded_windows.lock();
         if loaded { overlays.insert(label.to_owned()); } else { overlays.remove(label); }
@@ -162,19 +177,37 @@ struct OverlayStart {
 /// Freezes the screen and opens the overlay. `mode` is the tool the overlay
 /// starts with: region, window, screen, fixed, text, qr, color or ruler.
 pub fn start(app: &AppHandle, mode: &str) {
+    start_with_delay(app, mode, 0);
+}
+
+fn start_with_delay(app: &AppHandle, mode: &str, seconds: u32) {
     let st = state(app);
-    if st.capture.current().is_some() {
-        let _ = app.emit("overlay:mode", mode);
-        return;
+    // Reserve synchronously: ignored hotkeys must never be queued behind a timer.
+    let Some(starting) = st.capture.try_start() else { return; };
+    if let Some(session) = st.capture.current() {
+        if seconds == 0 {
+            let _ = app.emit("overlay:mode", mode);
+            return;
+        }
+        // Replace the current overlay and reserve its timer in one operation,
+        // without a cancel/start gap in which a hotkey could take the slot.
+        cancel(app, session.id);
     }
-    if st.capture.starting.swap(true, Ordering::SeqCst) {
-        return;
-    }
-    let app = app.clone();
     let mode = mode.to_string();
+    spawn_capture(app, starting, move |app| {
+        if seconds > 0 {
+            card::show(app, Card::Countdown { seconds });
+            std::thread::sleep(Duration::from_secs(seconds as u64));
+        }
+        begin(app, &mode)
+    });
+}
+
+fn spawn_capture(app: &AppHandle, starting: CaptureStart, capture: impl FnOnce(&AppHandle) -> Result<()> + Send + 'static) {
+    let app = app.clone();
     std::thread::spawn(move || {
-        let res = begin(&app, &mode);
-        if let Err(e) = res {
+        let _starting = starting;
+        if let Err(e) = capture(&app) {
             // A failure after installing the session must not leave every next
             // capture targeting an overlay that never opened.
             if let Some(session) = state(&app).capture.current() {
@@ -184,19 +217,12 @@ pub fn start(app: &AppHandle, mode: &str) {
             log::error!("capture failed: {e:#}");
             card::show(&app, Card::error(format!("{e:#}")));
         }
-        state(&app).capture.starting.store(false, Ordering::SeqCst);
     });
 }
 
 /// Waits, showing a countdown, then starts a capture.
 pub fn start_delayed(app: &AppHandle, mode: &str, seconds: u32) {
-    let app = app.clone();
-    let mode = mode.to_string();
-    std::thread::spawn(move || {
-        card::show(&app, Card::Countdown { seconds });
-        std::thread::sleep(Duration::from_secs(seconds as u64));
-        start(&app, &mode);
-    });
+    start_with_delay(app, mode, seconds);
 }
 
 fn begin(app: &AppHandle, mode: &str) -> Result<()> {
@@ -424,17 +450,22 @@ pub fn commit(app: &AppHandle, req: CommitRequest) -> Result<()> {
 }
 
 /// Captures the last area again, without the overlay.
-pub fn repeat_last(app: &AppHandle) -> Result<()> {
+pub fn repeat_last(app: &AppHandle) {
+    let st = state(app);
+    let Some(starting) = st.capture.try_start() else { return; };
+    if st.capture.current().is_some() { return; }
+    spawn_capture(app, starting, repeat_last_area);
+}
+
+fn repeat_last_area(app: &AppHandle) -> Result<()> {
     #[cfg(target_os = "linux")]
     if crate::platform::portal::is_wayland() {
-        start(app, "region");
-        return Ok(());
+        return begin(app, "region");
     }
     let st = state(app);
     let last = st.capture.last.lock().clone();
     let Some(last) = last else {
-        start(app, "region");
-        return Ok(());
+        return begin(app, "region");
     };
     let monitors = win::monitors();
     let m = monitors.iter().find(|m| m.name == last.monitor_name).or_else(|| monitors.first())
@@ -540,10 +571,9 @@ pub fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
         imaging::Format::Webp => state(app).settings().webp_quality,
         imaging::Format::Png => 100,
     };
-    let mut data = imaging::encode(img, format, quality)?;
-    if format == imaging::Format::Png {
-        data = imaging::optimize_png(&data).unwrap_or(data);
-    }
+    // Fast PNG is already lossless. A save must not wait for recompression,
+    // especially on slower computers or when capturing multiple 4K monitors.
+    let data = imaging::encode(img, format, quality)?;
     std::fs::write(&path, data)?;
     card::show(app, Card::Saved { path: path.to_string_lossy().into_owned() });
     Ok(())
@@ -569,13 +599,14 @@ pub fn verify_overlay(app: &AppHandle) -> Result<()> {
         settings: root.join("settings.json"), database: root.join("library.db"),
         thumbs: root.join("thumbs"), originals: root.join("originals"),
         legacy_originals: root.join("legacy"), default_save_dir: root.join("screenshots"),
-        private_dirs: vec![root.clone()],
+        private_dirs: vec![root.join("private")],
     };
     let library = Library::open(&paths.database)?;
     app.manage(AppState::new(paths, Settings::default(), library, Jobs::new()));
     let app = app.clone();
     std::thread::spawn(move || {
         let result = (|| -> Result<()> {
+            crate::editor::verify_export_quality(&app)?;
             let monitor = win::monitors().into_iter().next().ok_or_else(|| anyhow!("No display for the overlay check"))?;
             for attempt in 0..2 {
                 let image = RgbaImage::from_fn(monitor.rect.w as u32, monitor.rect.h as u32,
@@ -615,6 +646,69 @@ pub fn verify_overlay(app: &AppHandle) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_timer_reserves_capture_before_its_worker_runs_and_until_capture_finishes() {
+        let capture = Arc::new(CaptureState::default());
+        let starting = capture.try_start().unwrap();
+        // Both normal and repeat requests use this slot at dispatch time.
+        assert!(capture.try_start().is_none());
+        let (countdown_done, countdown) = std::sync::mpsc::channel();
+        let (capturing, capture_started) = std::sync::mpsc::channel();
+        let (finish, finished) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _starting = starting;
+            countdown.recv().unwrap();
+            capturing.send(()).unwrap();
+            finished.recv().unwrap();
+        });
+        assert!(capture.try_start().is_none());
+        countdown_done.send(()).unwrap();
+        capture_started.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(capture.try_start().is_none());
+        finish.send(()).unwrap();
+        worker.join().unwrap();
+        assert!(capture.try_start().is_some());
+    }
+
+    #[test]
+    fn concurrent_capture_requests_cannot_both_reserve_the_slot() {
+        let capture = Arc::new(CaptureState::default());
+        let dispatch = Arc::new(std::sync::Barrier::new(9));
+        let attempted = Arc::new(std::sync::Barrier::new(9));
+        let workers: Vec<_> = (0..8).map(|_| {
+            let (capture, dispatch, attempted) = (capture.clone(), dispatch.clone(), attempted.clone());
+            std::thread::spawn(move || {
+                dispatch.wait();
+                let starting = capture.try_start();
+                attempted.wait();
+                starting.is_some()
+            })
+        }).collect();
+        dispatch.wait();
+        attempted.wait();
+        assert_eq!(workers.into_iter().map(|worker| usize::from(worker.join().unwrap())).sum::<usize>(), 1);
+        assert!(capture.try_start().is_some());
+    }
+
+    #[test]
+    fn a_failed_capture_releases_the_slot() {
+        let capture = CaptureState::default();
+        let starting = capture.try_start().unwrap();
+        let worker = std::thread::spawn(move || {
+            let _starting = starting;
+            Err::<(), _>(anyhow!("capture failed"))
+        });
+        assert!(worker.join().unwrap().is_err());
+        assert!(capture.try_start().is_some());
+
+        let starting = capture.try_start().unwrap();
+        assert!(std::panic::catch_unwind(move || {
+            let _starting = starting;
+            panic!("capture worker panicked");
+        }).is_err());
+        assert!(capture.try_start().is_some());
+    }
 
     #[test]
     fn readiness_is_invalidated_when_a_page_reloads() {

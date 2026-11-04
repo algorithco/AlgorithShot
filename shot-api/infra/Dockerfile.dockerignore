@@ -1,0 +1,16 @@
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!LICENSE
+!shot-api/
+!shot-api/package.json
+!shot-api/tsconfig.json
+!shot-api/tsconfig.build.json
+!shot-api/README.md
+!shot-api/src/
+!shot-api/src/**
+!shot-api/docs/
+!shot-api/docs/**
+!shot-api/integration/
+!shot-api/integration/**

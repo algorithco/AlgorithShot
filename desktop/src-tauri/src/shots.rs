@@ -8,7 +8,7 @@ use image::RgbaImage;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
-use crate::imaging::{self, Format};
+use crate::imaging::{EncodedImage, Format};
 use crate::jobs::Job;
 use crate::library::{NewShot, Shot};
 use crate::state::{state, Deleted};
@@ -73,6 +73,16 @@ pub fn unique_path(dir: &Path, stem: &str, ext: &str) -> PathBuf {
         .expect("some name is free")
 }
 
+fn with_available_extension(path: &Path, ext: &str) -> Result<PathBuf> {
+    let target = path.with_extension(ext);
+    if target == path || !target.exists() {
+        return Ok(target);
+    }
+    let dir = path.parent().context("no folder")?;
+    let stem = path.file_stem().context("no file name")?.to_string_lossy();
+    Ok(unique_path(dir, &stem, ext))
+}
+
 fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
     let tmp = path.with_extension(format!(
         "{}.part",
@@ -87,28 +97,34 @@ fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
 pub fn save_new(app: &AppHandle, img: &RgbaImage, src: &Source) -> Result<Shot> {
     let st = state(app);
     let settings = st.settings();
-    let dir = st.save_dir();
-    st.paths.validate_save_dir(&dir)?;
-    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
-
     let format = Format::parse(&settings.format);
     let quality = match format {
         Format::Jpeg => settings.jpeg_quality,
         Format::Webp => settings.webp_quality,
         Format::Png => 100,
     };
+    save_new_encoded(app, &EncodedImage::new(img, format, quality, 0)?, src)
+}
+
+/// Saves the exact export chosen by the editor, independent of capture defaults.
+pub fn save_new_encoded(app: &AppHandle, image: &EncodedImage, src: &Source) -> Result<Shot> {
+    let st = state(app);
+    let settings = st.settings();
+    let dir = st.save_dir();
+    st.paths.validate_save_dir(&dir)?;
+    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+    let format = image.format;
     let now = Local::now();
     let path = unique_path(&dir, &file_stem(&settings.file_pattern, src, now), format.ext());
-    let data = imaging::encode(img, format, quality)?;
     st.note_write(path.clone());
-    write_atomic(&path, &data)?;
+    write_atomic(&path, &image.data)?;
 
     let shot = st.library.insert(&NewShot {
         path: path.to_string_lossy().into_owned(),
         created: now.timestamp_millis(),
-        width: img.width(),
-        height: img.height(),
-        bytes: data.len() as u64,
+        width: image.width,
+        height: image.height,
+        bytes: image.data.len() as u64,
         format: format.ext().into(),
         app: src.app.clone(),
         title: src.title.clone(),
@@ -350,7 +366,7 @@ pub fn original_path(app: &AppHandle, id: &str) -> Option<PathBuf> {
 
 /// Saves an edited image over a library screenshot. The first edit keeps
 /// the untouched file so "Revert to original" can bring it back.
-pub fn save_edit(app: &AppHandle, id: &str, img: &RgbaImage, format: Format, quality: u8) -> Result<Shot> {
+pub fn save_edit(app: &AppHandle, id: &str, image: &EncodedImage) -> Result<Shot> {
     let st = state(app);
     let shot = st.library.get(id)?.ok_or_else(|| anyhow!("not found"))?;
     let path = PathBuf::from(&shot.path);
@@ -362,16 +378,20 @@ pub fn save_edit(app: &AppHandle, id: &str, img: &RgbaImage, format: Format, qua
         std::fs::copy(&path, st.paths.originals.join(format!("{id}.{ext}")))?;
     }
     // Keep the file's own format unless the user picked another one.
-    let target = if Format::from_path(&path) == format { path.clone() } else { path.with_extension(format.ext()) };
-    let data = imaging::encode(img, format, quality)?;
+    let format = image.format;
+    let target = if Format::from_path(&path) == format {
+        path.clone()
+    } else {
+        with_available_extension(&path, format.ext())?
+    };
     st.note_write(target.clone());
-    write_atomic(&target, &data)?;
+    write_atomic(&target, &image.data)?;
     if target != path {
         st.note_write(path.clone());
         let _ = std::fs::remove_file(&path);
         st.library.set_path(id, &target.to_string_lossy())?;
     }
-    st.library.file_changed(id, data.len() as u64, img.width(), img.height(), Some(true), true)?;
+    st.library.file_changed(id, image.data.len() as u64, image.width, image.height, Some(true), true)?;
     after_change(app, id, format == Format::Png);
     st.library.get(id)?.ok_or_else(|| anyhow!("not found"))
 }
@@ -382,7 +402,7 @@ pub fn revert(app: &AppHandle, id: &str) -> Result<Shot> {
     let orig = original_path(app, id).ok_or_else(|| anyhow!("no original"))?;
     let current = PathBuf::from(&shot.path);
     let ext = orig.extension().and_then(|e| e.to_str()).unwrap_or("png");
-    let target = current.with_extension(ext);
+    let target = with_available_extension(&current, ext)?;
     st.paths.validate_save_dir(&target)?;
     st.note_write(current.clone());
     st.note_write(target.clone());

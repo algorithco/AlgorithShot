@@ -23,6 +23,7 @@ mod platform;
 #[path = "platform/checks.rs"]
 mod platform_checks;
 mod protocol;
+mod recording;
 mod settings;
 mod shots;
 mod smart;
@@ -80,6 +81,19 @@ fn show_main_later(app: &AppHandle, page: &str) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // This verifier runs independently of single-instance forwarding, user
+    // storage, tray and shortcuts. It captures only a window it creates.
+    #[cfg(target_os = "windows")]
+    if let Some(index) = std::env::args().position(|arg| arg == "--verify-recording") {
+        let result = std::env::args().nth(index + 1)
+            .ok_or_else(|| anyhow::anyhow!("--verify-recording requires an output directory"))
+            .and_then(|path| recording::verify::run(std::path::Path::new(&path)));
+        if let Err(error) = result {
+            eprintln!("Recording verification failed: {error:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let context = tauri::generate_context!();
     // Run before single-instance forwarding, storage, hotkeys or any windows.
     // The release script checks the compiled executable before bundling it.
@@ -154,6 +168,7 @@ pub fn run() {
             let library = Library::open(&paths.database)?;
             storage::prepare(&paths, &mut settings, &library)?;
             app.manage(AppState::new(paths, settings, library, Jobs::new()));
+            app.manage(recording::RecordingState::default());
 
             let st = state::state(&handle);
             st.jobs.start(handle.clone());
@@ -189,6 +204,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            recording::recording_sources,
+            recording::recording_status,
+            recording::recording_start,
+            recording::recording_stop,
+            recording::recording_open,
+            recording::recording_reveal,
+            recording::recording_update_lock,
             commands::get_settings,
             commands::save_settings,
             commands::hotkey_status,
@@ -248,10 +270,15 @@ pub fn run() {
         .build(context)
         .expect("error while building the app");
 
-    app.run(|_app, event| {
+    app.run(|app, event| {
         // Closing the last window keeps the app in the tray.
-        if let RunEvent::ExitRequested { api, code: None, .. } = event {
-            api.prevent_exit();
+        if let RunEvent::ExitRequested { api, code, .. } = event {
+            if code.is_none() {
+                api.prevent_exit();
+            } else if recording::is_active(app) {
+                api.prevent_exit();
+                recording::shutdown(app, code.unwrap_or_default());
+            }
         }
     });
 }

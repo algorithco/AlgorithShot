@@ -125,7 +125,10 @@ pub fn card(app: &AppHandle) -> Result<WebviewWindow> {
         })
         .build()?;
     #[cfg(target_os = "windows")]
-    win::disable_transitions(w.hwnd()?.0 as isize);
+    {
+        win::disable_transitions(w.hwnd()?.0 as isize);
+        win::keep_card_on_top(&w)?;
+    }
     Ok(w)
 }
 

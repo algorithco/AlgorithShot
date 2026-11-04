@@ -39,20 +39,33 @@ pub fn index_shot(app: &AppHandle, id: &str) -> Result<()> {
     let settings = st.settings();
 
     let text = if settings.index_text || settings.privacy_check { ocr::read(&img) } else { Err(anyhow!("off")) };
-    match &text {
-        Ok(results) if settings.index_text => st.library.set_text(id, &ocr::union_text(results), 1)?,
+    let (body, text_state) = match &text {
+        Ok(results) if settings.index_text => (ocr::union_text(results), 1),
         Err(e) if settings.index_text => {
             log::warn!("reading text of {id}: {e:#}");
-            st.library.set_text(id, "", 2)?;
+            (String::new(), 2)
         }
-        _ => st.library.set_text(id, "", 2)?,
+        _ => (String::new(), 2),
+    };
+    let (privacy_count, privacy_json) = if settings.privacy_check {
+        match text.as_ref().map_err(|e| anyhow!("Privacy text recognition failed: {e:#}"))
+            .and_then(|results| privacy::scan(&img, results)) {
+            Ok(found) => (found.len() as i32, serde_json::to_string(&found)?),
+            Err(e) => {
+                log::warn!("privacy check of {id}: {e:#}");
+                (-2, String::new())
+            }
+        }
+    } else { (-1, String::new()) };
+    let hash = fingerprint(&img);
+    let updated = st.library.set_index(id, shot.rev, &crate::library::ShotIndex {
+        text: &body, text_state, privacy: privacy_count, privacy_json: &privacy_json, phash: &hash,
+    })?;
+    if updated {
+        let _ = app.emit("library:indexed", id);
+    } else if st.library.get(id)?.is_some_and(|latest| latest.rev != shot.rev) {
+        st.jobs.push(crate::jobs::Job::Index(id.to_string()));
     }
-    if settings.privacy_check {
-        let found = privacy::scan(&img, text.as_deref().unwrap_or(&[]));
-        st.library.set_privacy(id, found.len() as i32, &serde_json::to_string(&found)?)?;
-    }
-    st.library.set_phash(id, &fingerprint(&img))?;
-    let _ = app.emit("library:indexed", id);
     Ok(())
 }
 
@@ -61,6 +74,9 @@ pub fn resume_indexing(app: &AppHandle) {
     let st = state(app);
     let mut ids = st.library.pending_text(500).unwrap_or_default();
     ids.extend(st.library.missing_phash(500).unwrap_or_default());
+    if st.settings().privacy_check {
+        ids.extend(st.library.pending_privacy(500).unwrap_or_default());
+    }
     ids.sort();
     ids.dedup();
     for id in ids {

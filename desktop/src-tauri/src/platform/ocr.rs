@@ -78,10 +78,12 @@ pub fn read(image: &RgbaImage) -> Result<Vec<OcrText>> {
     let mut text = response.context("Offline text recognition timed out")?.map_err(|e| anyhow!(e))?;
     for line in &mut text.lines {
         for word in &mut line.words {
+            let right = ((word.rect.x as f64 + word.rect.w as f64) / scale).ceil() as i32;
+            let bottom = ((word.rect.y as f64 + word.rect.h as f64) / scale).ceil() as i32;
             word.rect.x = (word.rect.x as f64 / scale).floor() as i32;
             word.rect.y = (word.rect.y as f64 / scale).floor() as i32;
-            word.rect.w = (word.rect.w as f64 / scale).ceil() as i32;
-            word.rect.h = (word.rect.h as f64 / scale).ceil() as i32;
+            word.rect.w = right - word.rect.x;
+            word.rect.h = bottom - word.rect.y;
         }
     }
     Ok(vec![text])

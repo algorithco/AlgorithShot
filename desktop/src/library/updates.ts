@@ -2,11 +2,14 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { createStore } from "zustand/vanilla";
 import { errorText } from "../shared/api";
+import { invoke } from "@tauri-apps/api/core";
 
 type PendingUpdate = Pick<Update, "version" | "downloadAndInstall" | "close">;
 type UpdateDependencies = {
   check: () => Promise<PendingUpdate | null>;
   restart: () => Promise<void>;
+  beforeInstall?: () => Promise<void>;
+  afterInstall?: () => Promise<void>;
 };
 
 export type UpdateState = {
@@ -51,7 +54,12 @@ export function createUpdateStore(dependencies: UpdateDependencies) {
       if (!pending && !installed) return;
 
       set({ status: installed ? "restarting" : "downloading", downloaded: 0, total: null, error: null });
+      let locked = false;
       try {
+        if (dependencies.beforeInstall) {
+          await dependencies.beforeInstall();
+          locked = true;
+        }
         if (!installed && pending) {
           const update = pending;
           const onProgress = (event: DownloadEvent) => {
@@ -74,6 +82,8 @@ export function createUpdateStore(dependencies: UpdateDependencies) {
         await dependencies.restart();
       } catch (error) {
         set({ status: "error", error: errorText(error) });
+      } finally {
+        if (locked) await dependencies.afterInstall?.().catch(() => {});
       }
     },
   }));
@@ -82,6 +92,8 @@ export function createUpdateStore(dependencies: UpdateDependencies) {
 export const updateStore = createUpdateStore({
   check: () => check({ timeout: 8000 }),
   restart: relaunch,
+  beforeInstall: () => invoke<void>("recording_update_lock", { locked: true }),
+  afterInstall: () => invoke<void>("recording_update_lock", { locked: false }),
 });
 
 const RECHECK_MS = 15 * 60_000;

@@ -1,7 +1,7 @@
 // Settings, one group at a time: a list of groups on the left, the chosen
 // one on the right. Every change saves right away; there is no Save button.
 
-import { AlertTriangle, Copy, Crosshair, FolderOpen, HardDrive, Info, Keyboard, SlidersHorizontal, Sparkles, type LucideIcon } from "lucide-react";
+import { AlertTriangle, Brush, Copy, Crosshair, FolderOpen, HardDrive, Info, Keyboard, SlidersHorizontal, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api, errorText, type AppInfo, type HotkeyStatus, type Hotkeys, type Settings } from "../shared/api";
@@ -154,7 +154,7 @@ export function SettingsPage() {
             {settings.showCard && (
               <Row label={t("set.cardSeconds")}>
                 <select className="select" value={settings.cardSeconds} onChange={(e) => save({ cardSeconds: Number(e.target.value) })}>
-                  {[3, 6, 10, 20].map((s) => (
+                  {[3, 6, 10, 20, 45].map((s) => (
                     <option key={s} value={s}>
                       {t("set.seconds", { n: s })}
                     </option>
@@ -210,7 +210,7 @@ export function SettingsPage() {
               />
             </Row>
             {settings.format !== "png" && (
-              <Row label={t("set.quality")}>
+              <Row label={t("set.quality")} hint={t(settings.format === "webp" && settings.webpQuality === 100 ? "image.lossless" : "image.lossy")}>
                 <div className="row-controls">
                   <input
                     type="range"
@@ -241,6 +241,11 @@ export function SettingsPage() {
                   </option>
                 ))}
               </select>
+            </Row>
+            <Row label={t("clean.title")} hint={t("clean.intro")}>
+              <button className="btn" onClick={() => { location.hash = "cleanup"; }}>
+                <Brush size={16} /> {t("lib.cleanup")}
+              </button>
             </Row>
           </Section>}
 

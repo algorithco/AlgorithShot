@@ -462,6 +462,12 @@ export function ExportPanel(props: {
   estimate: { bytes: number; quality: number } | "tooBig" | null;
 }) {
   const t = useT();
+  let detail: Key = "image.lossy";
+  if (props.format === "png" || (props.format === "webp" && props.quality === 100 && !props.maxKb)) {
+    detail = "image.lossless";
+  } else if (props.maxKb > 0) {
+    detail = "image.sizeLimit";
+  }
   return (
     <Section title={t("ed.export")}>
       <Field label={t("ed.format")}>
@@ -475,6 +481,7 @@ export function ExportPanel(props: {
           ]}
         />
       </Field>
+      <p className="ed-estimate">{t(detail)}</p>
       {props.format !== "png" && !props.maxKb && (
         <Field label={t("ed.quality")}>
           <Slider value={props.quality} min={30} max={100} label={t("ed.quality")} onChange={props.onQuality} />

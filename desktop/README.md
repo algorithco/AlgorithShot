@@ -6,7 +6,7 @@ Russian. The plan and the reasons behind it are in [docs/PLAN.md](docs/PLAN.md).
 
 ## What it does
 
-- **Capture**: one hotkey (Ctrl+Alt+A, or Print Screen) freezes the
+- **Capture**: one hotkey (Ctrl+Shift+A, or Print Screen) freezes the
   screen. Drag a region, click a window, capture the full screen or a fixed size,
   or use a timer. With **Highlight the window under the pointer** turned on in
   Settings, a click in Region mode also captures a window or a part of it
