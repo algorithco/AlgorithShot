@@ -341,7 +341,6 @@ export function Overlay() {
                   key={s}
                   onClick={() => {
                     const mode = view.mode === "color" || view.mode === "ruler" ? "region" : view.mode;
-                    cancel();
                     api.captureStart(mode, s);
                   }}
                 >
