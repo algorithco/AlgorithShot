@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { api, editorApi, errorText, imageUrl, thumbUrl, type Shot, type ShotDetail } from "../shared/api";
+import { api, editorApi, errorText, imageUrl, thumbUrl, type Shot } from "../shared/api";
 import { dayKey, formatBytes, formatDate, formatDateTime, prettyKey } from "../shared/format";
 import { useLang, useT } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
@@ -163,7 +163,7 @@ export function LibraryPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [confirmIds, renaming, remove, run, t]);
 
-  const hotkey = settings?.hotkeys.capture || settings?.hotkeys.captureAlt || "Ctrl+Alt+A";
+  const hotkey = settings?.hotkeys.capture || settings?.hotkeys.captureAlt || "Ctrl+Shift+A";
   const empty = !lib.loading && lib.items.length === 0;
 
   return (
@@ -446,8 +446,8 @@ function Tile({
       <div className={`tile-thumb checker${selected ? " brackets" : ""}`} style={{ height: thumbH }}>
         {broken ? <ImageOff size={26} strokeWidth={1.5} className="tile-broken" /> : <img src={thumbUrl(shot)} alt="" loading="lazy" draggable={false} onError={() => setBroken(true)} />}
         {shot.favorite && <Star size={15} className="tile-star" fill="currentColor" />}
-        {shot.privacy > 0 && (
-          <span className="tile-badge" title={t("lib.privacyFound", { n: shot.privacy })}>
+        {(shot.privacy > 0 || shot.privacy === -2) && (
+          <span className="tile-badge" title={shot.privacy === -2 ? t("pv.failed") : t("lib.privacyFound", { n: shot.privacy })}>
             <ShieldAlert size={13} />
           </span>
         )}
@@ -480,29 +480,11 @@ function TileButton({ icon: Icon, label, on, onClick }: { icon: LucideIcon; labe
 function Details({ shot, onRename, onDelete }: { shot: Shot; onRename: (s: Shot) => void; onDelete: (ids: string[]) => void }) {
   const t = useT();
   const lang = useLang();
-  const [detail, setDetail] = useState<ShotDetail | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () =>
-      api
-        .get(shot.id)
-        .then((d) => alive && setDetail(d))
-        .catch(() => alive && setDetail(null));
-    load();
-    const sub = listen<string>("library:indexed", (e) => e.payload === shot.id && load());
-    return () => {
-      alive = false;
-      sub.then((un) => un());
-    };
-  }, [shot.id, shot.rev]);
-
   const act = (fn: () => Promise<unknown>, done?: string) =>
     fn()
       .then(() => done && toast({ text: done }, 2000))
       .catch((e) => toast({ text: t("common.error", { msg: errorText(e) }), error: true }));
 
-  const text = detail?.text ?? "";
   return (
     <aside className="details">
       <div className="details-preview checker" onDoubleClick={() => api.openEditor(`shot:${shot.id}`)}>
@@ -557,25 +539,13 @@ function Details({ shot, onRename, onDelete }: { shot: Shot; onRename: (s: Shot)
         )}
       </dl>
 
-      {shot.privacy > 0 && (
+      {(shot.privacy > 0 || shot.privacy === -2) && (
         <button className="details-privacy" onClick={() => api.openEditor(`shot:${shot.id}`, "privacy")}>
           <ShieldAlert size={16} />
-          <span>{t("lib.privacyFound", { n: shot.privacy })}</span>
-          <strong>{t("card.hide")}</strong>
+          <span>{shot.privacy === -2 ? t("pv.failed") : t("lib.privacyFound", { n: shot.privacy })}</span>
+          <strong>{shot.privacy === -2 ? t("ed.scan") : t("card.hide")}</strong>
         </button>
       )}
-
-      <div className="details-text">
-        <div className="details-text-head">
-          <span className="edge">{t("lib.textInside")}</span>
-          {text && (
-            <button className="btn btn-ghost" onClick={() => act(() => api.copyText(text), t("common.copied"))}>
-              <Copy size={14} /> {t("lib.copyText")}
-            </button>
-          )}
-        </div>
-        <div className="details-text-body">{shot.textState === 0 ? t("lib.textPending") : text || t("lib.textNone")}</div>
-      </div>
     </aside>
   );
 }

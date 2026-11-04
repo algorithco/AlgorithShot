@@ -1,6 +1,6 @@
 // The main window: sidebar on the left, the current page on the right.
 
-import { Brush, CalendarDays, CalendarRange, Images, PanelLeftClose, PanelLeftOpen, Settings as Gear, Star, Sun } from "lucide-react";
+import { CalendarDays, CalendarRange, Images, PanelLeftClose, PanelLeftOpen, Settings as Gear, Star, Sun } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../shared/i18n";
 import { useSettings } from "../shared/settings";
@@ -132,7 +132,6 @@ export function App() {
         </nav>
 
         <div className="nav nav-bottom">
-          {navItem("cleanup", <Brush size={17} />, t("lib.cleanup"), null, behind === "cleanup", () => go("cleanup"))}
           {navItem("settings", <Gear size={17} />, t("lib.settings"), null, behind === "settings", () => go("settings"))}
         </div>
       </aside>

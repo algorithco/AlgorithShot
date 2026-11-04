@@ -18,7 +18,7 @@ const MARGIN = 14; // room for the shadow around the card
 export function Card() {
   useTheme();
   const t = useT();
-  const seconds = useSettings((s) => s.settings?.cardSeconds ?? 6);
+  const seconds = useSettings((s) => s.settings?.cardSeconds ?? 45);
   const [card, setCard] = useState<CardPayload | null>(null);
   const [shot, setShot] = useState<Shot | null>(null);
   const [note, setNote] = useState<string | null>(null);
