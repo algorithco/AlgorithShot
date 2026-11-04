@@ -571,10 +571,9 @@ pub fn save_as(app: &AppHandle, img: &RgbaImage) -> Result<()> {
         imaging::Format::Webp => state(app).settings().webp_quality,
         imaging::Format::Png => 100,
     };
-    let mut data = imaging::encode(img, format, quality)?;
-    if format == imaging::Format::Png {
-        data = imaging::optimize_png(&data).unwrap_or(data);
-    }
+    // Fast PNG is already lossless. A save must not wait for recompression,
+    // especially on slower computers or when capturing multiple 4K monitors.
+    let data = imaging::encode(img, format, quality)?;
     std::fs::write(&path, data)?;
     card::show(app, Card::Saved { path: path.to_string_lossy().into_owned() });
     Ok(())
@@ -600,13 +599,14 @@ pub fn verify_overlay(app: &AppHandle) -> Result<()> {
         settings: root.join("settings.json"), database: root.join("library.db"),
         thumbs: root.join("thumbs"), originals: root.join("originals"),
         legacy_originals: root.join("legacy"), default_save_dir: root.join("screenshots"),
-        private_dirs: vec![root.clone()],
+        private_dirs: vec![root.join("private")],
     };
     let library = Library::open(&paths.database)?;
     app.manage(AppState::new(paths, Settings::default(), library, Jobs::new()));
     let app = app.clone();
     std::thread::spawn(move || {
         let result = (|| -> Result<()> {
+            crate::editor::verify_export_quality(&app)?;
             let monitor = win::monitors().into_iter().next().ok_or_else(|| anyhow!("No display for the overlay check"))?;
             for attempt in 0..2 {
                 let image = RgbaImage::from_fn(monitor.rect.w as u32, monitor.rect.h as u32,

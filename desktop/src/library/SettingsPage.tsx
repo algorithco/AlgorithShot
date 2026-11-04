@@ -210,7 +210,7 @@ export function SettingsPage() {
               />
             </Row>
             {settings.format !== "png" && (
-              <Row label={t("set.quality")}>
+              <Row label={t("set.quality")} hint={t(settings.format === "webp" && settings.webpQuality === 100 ? "image.lossless" : "image.lossy")}>
                 <div className="row-controls">
                   <input
                     type="range"
