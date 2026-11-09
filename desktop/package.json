@@ -26,28 +26,28 @@
   },
   "dependencies": {
     "@crabnebula/tauri-plugin-drag": "^2.1.0",
-    "@tanstack/react-virtual": "^3.14.22",
+    "@tanstack/react-virtual": "^3.14.26",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "~2.7.0",
-    "@tauri-apps/plugin-dialog": "~2.8.3",
+    "@tauri-apps/plugin-dialog": "~2.8.4",
     "@tauri-apps/plugin-global-shortcut": "~2",
     "@tauri-apps/plugin-log": "~2.10.1",
     "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-process": "~2.3.1",
-    "@tauri-apps/plugin-updater": "~2.11.0",
-    "lucide-react": "^1.61.0",
+    "@tauri-apps/plugin-process": "~2.4.0",
+    "@tauri-apps/plugin-updater": "~2.14.1",
+    "lucide-react": "^1.70.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tesseract.js": "6.0.1",
-    "zustand": "^5.0.16"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
-    "@vitejs/plugin-react": "^6.0.2",
+    "@vitejs/plugin-react": "^6.2.1",
     "typescript": "~6.0.3",
-    "vite": "^8.0.16",
-    "vitest": "^5.0.5"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   }
 }
